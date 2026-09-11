@@ -1,0 +1,12 @@
+{
+  "event_id": "74d3bf77-81d1-4448-a188-511502a31e46",
+  "event_type": "plant.observation.created",
+  "schema_version": 1,
+  "occurred_at": 1770000000000,
+  "observation_id": "ec94d086-fc15-4247-833e-92fe099d3d81",
+  "plant_id": "c54ec720-b72c-4cf5-a450-45d72d9f2155",
+  "photo_uri": "s3://plantguard-observations/ec94d086/photo.jpg",
+  "description": "Желтеют нижние листья",
+  "humidity_pct": 74,
+  "temperature_c": 23.5
+}

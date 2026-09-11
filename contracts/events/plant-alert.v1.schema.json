@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plantguard.local/contracts/plant-alert.v1.schema.json",
+  "title": "Plant environment alert",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "occurred_at",
+    "plant_id",
+    "alert_code",
+    "severity"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "event_type": {
+      "const": "plant.environment.alerted"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "plant_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "alert_code": {
+      "type": "string",
+      "enum": [
+        "humidity_too_low",
+        "humidity_too_high",
+        "temperature_too_low",
+        "temperature_too_high"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["warning", "critical"]
+    }
+  }
+}

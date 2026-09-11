@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plantguard.local/contracts/plant-observation.v1.schema.json",
+  "title": "Plant observation created",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "occurred_at",
+    "observation_id",
+    "plant_id",
+    "photo_uri"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "plant.observation.created"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix time in milliseconds"
+    },
+    "observation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "plant_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "photo_uri": {
+      "type": "string",
+      "format": "uri"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "humidity_pct": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "temperature_c": {
+      "type": ["number", "null"],
+      "minimum": -50,
+      "maximum": 70
+    }
+  }
+}

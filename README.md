@@ -73,6 +73,12 @@ cp .env.example .env
 docker compose up --build
 ```
 
+В отдельном терминале после готовности ksqlDB:
+
+```bash
+make ksql-init
+```
+
 После запуска:
 
 - веб-приложение: `http://localhost:5173`;
@@ -82,6 +88,7 @@ docker compose up --build
 ## Тестирование
 
 ```bash
+make bootstrap
 make test
 ```
 

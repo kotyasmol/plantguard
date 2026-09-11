@@ -1,0 +1,10 @@
+{
+  "event_id": "ed7a851a-cfa3-452b-8a9f-d127062ed490",
+  "event_type": "plant.environment.recorded",
+  "schema_version": 1,
+  "occurred_at": 1770000000000,
+  "plant_id": "c54ec720-b72c-4cf5-a450-45d72d9f2155",
+  "source": "simulator",
+  "humidity_pct": 88,
+  "temperature_c": 23.5
+}

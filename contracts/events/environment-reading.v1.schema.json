@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plantguard.local/contracts/environment-reading.v1.schema.json",
+  "title": "Plant environment reading",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "occurred_at",
+    "plant_id",
+    "source"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "plant.environment.recorded"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix time in milliseconds"
+    },
+    "plant_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["manual", "simulator", "sensor"]
+    },
+    "humidity_pct": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "temperature_c": {
+      "type": ["number", "null"],
+      "minimum": -50,
+      "maximum": 70
+    }
+  },
+  "anyOf": [
+    { "required": ["humidity_pct"] },
+    { "required": ["temperature_c"] }
+  ]
+}

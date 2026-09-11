@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plantguard-api"
+version = "0.1.0"
+description = "Application API for PlantGuard"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi==0.115.12",
+    "pydantic-settings==2.8.1",
+    "python-multipart==0.0.20",
+    "uvicorn[standard]==0.34.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
