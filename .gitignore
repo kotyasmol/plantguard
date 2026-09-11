@@ -8,6 +8,7 @@ node_modules/
 dist/
 coverage/
 .vite/
+*.tsbuildinfo
 
 # Python
 __pycache__/
@@ -15,6 +16,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+*.egg-info/
 
 # IDE and operating system
 .idea/

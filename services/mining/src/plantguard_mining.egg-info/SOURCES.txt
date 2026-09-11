@@ -1,9 +1,0 @@
-pyproject.toml
-src/plantguard_mining/__init__.py
-src/plantguard_mining/policy.py
-src/plantguard_mining/ports.py
-src/plantguard_mining.egg-info/PKG-INFO
-src/plantguard_mining.egg-info/SOURCES.txt
-src/plantguard_mining.egg-info/dependency_links.txt
-src/plantguard_mining.egg-info/top_level.txt
-tests/test_policy.py

@@ -1,5 +1,0 @@
-Metadata-Version: 2.4
-Name: plantguard-mining
-Version: 0.1.0
-Summary: Decision policy and model interfaces for PlantGuard
-Requires-Python: >=3.9

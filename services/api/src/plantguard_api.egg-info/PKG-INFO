@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: plantguard-api
-Version: 0.1.0
-Summary: Application API for PlantGuard
-Requires-Python: >=3.9
-Requires-Dist: fastapi==0.115.12
-Requires-Dist: pydantic-settings==2.8.1
-Requires-Dist: python-multipart==0.0.20
-Requires-Dist: uvicorn[standard]==0.34.0
