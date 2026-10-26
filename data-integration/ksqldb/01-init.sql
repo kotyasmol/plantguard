@@ -11,6 +11,7 @@ CREATE STREAM IF NOT EXISTS plant_observations (
     temperature_c DOUBLE
 ) WITH (
     KAFKA_TOPIC = 'plant.observations.v1',
+    PARTITIONS = 3,
     VALUE_FORMAT = 'JSON',
     TIMESTAMP = 'occurred_at'
 );
@@ -26,6 +27,7 @@ CREATE STREAM IF NOT EXISTS environment_readings (
     temperature_c DOUBLE
 ) WITH (
     KAFKA_TOPIC = 'plant.environment-readings.v1',
+    PARTITIONS = 3,
     VALUE_FORMAT = 'JSON',
     TIMESTAMP = 'occurred_at'
 );

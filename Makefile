@@ -1,4 +1,4 @@
-.PHONY: bootstrap test test-python test-web lint build up down ksql-init
+.PHONY: bootstrap test test-python test-web lint build up down ksql-init smoke
 
 bootstrap:
 	python3 -m venv .venv
@@ -15,7 +15,7 @@ test-web:
 	npm run test --workspace @plantguard/web
 
 lint:
-	.venv/bin/python -m ruff check services tests
+	.venv/bin/python -m ruff check services tests scripts
 	npm run lint --workspace @plantguard/web
 
 build:
@@ -29,3 +29,6 @@ down:
 
 ksql-init:
 	docker compose --profile tools run --rm ksqldb-init
+
+smoke:
+	python3 scripts/check_stack.py
