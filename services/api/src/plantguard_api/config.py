@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     environment: str = "development"
     cors_origins: str = "http://localhost:5173"
+    database_url: str = "postgresql+psycopg://plantguard:plantguard@localhost:5432/plantguard"
     max_image_bytes: int = 10 * 1024 * 1024
 
     model_config = SettingsConfigDict(env_prefix="PLANTGUARD_", env_file=".env")

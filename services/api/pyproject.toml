@@ -8,9 +8,12 @@ version = "0.1.0"
 description = "Application API for PlantGuard"
 requires-python = ">=3.9"
 dependencies = [
+    "alembic==1.16.5",
     "fastapi==0.115.12",
     "pydantic-settings==2.8.1",
+    "psycopg[binary]==3.2.13",
     "python-multipart==0.0.20",
+    "SQLAlchemy==2.0.55",
     "uvicorn[standard]==0.34.0",
 ]
 
