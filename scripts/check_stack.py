@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from uuid import uuid4
 
 TIMEOUT_SECONDS = 90
 EXPECTED_STREAMS = {
@@ -22,14 +24,23 @@ EXPECTED_TABLES = {
     "LATEST_ENVIRONMENT",
     "ENVIRONMENT_SIX_HOUR_SUMMARY",
 }
+SMOKE_PHOTO = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 
-def request(url: str, *, data: bytes | None = None) -> bytes:
-    headers = {"Content-Type": "application/vnd.ksql.v1+json"} if data else {}
+def request(
+    url: str,
+    *,
+    data: bytes | None = None,
+    headers: dict[str, str] | None = None,
+    method: str | None = None,
+    expected_status: int = 200,
+) -> bytes:
     with urllib.request.urlopen(
-        urllib.request.Request(url, data=data, headers=headers), timeout=5
+        urllib.request.Request(url, data=data, headers=headers or {}, method=method), timeout=5
     ) as response:
-        if response.status != 200:
+        if response.status != expected_status:
             raise RuntimeError(f"{url} returned HTTP {response.status}")
         return response.read()
 
@@ -60,9 +71,47 @@ def check_web() -> None:
         raise RuntimeError("web page does not contain the PlantGuard title")
 
 
+def check_photo_storage() -> None:
+    boundary = f"plantguard-smoke-{uuid4().hex}"
+    body = (
+        (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="photo"; filename="smoke.png"\r\n'
+            "Content-Type: image/png\r\n\r\n"
+        ).encode()
+        + SMOKE_PHOTO
+        + f"\r\n--{boundary}--\r\n".encode()
+    )
+    upload = json.loads(
+        request(
+            "http://localhost:8000/api/v1/photos",
+            data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+            expected_status=201,
+        )
+    )
+
+    if request(upload["read_url"]) != SMOKE_PHOTO:
+        raise RuntimeError("downloaded photo differs from the uploaded file")
+    request(upload["delete_url"], method="DELETE", expected_status=204)
+    try:
+        request(upload["read_url"])
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return
+        raise
+    raise RuntimeError("deleted photo is still available")
+
+
 def ksql(command: str) -> list[dict[str, object]]:
     payload = json.dumps({"ksql": command, "streamsProperties": {}}).encode()
-    result = json.loads(request("http://localhost:8088/ksql", data=payload))
+    result = json.loads(
+        request(
+            "http://localhost:8088/ksql",
+            data=payload,
+            headers={"Content-Type": "application/vnd.ksql.v1+json"},
+        )
+    )
     if not isinstance(result, list):
         raise RuntimeError(f"unexpected ksqlDB response: {result}")
     return result
@@ -100,6 +149,7 @@ def check_ksqldb() -> None:
 def main() -> None:
     wait_for("API", check_api)
     wait_for("web application", check_web)
+    wait_for("photo storage", check_photo_storage)
     wait_for("ksqlDB queries", check_ksqldb)
     print("PlantGuard stack is ready.")
 
