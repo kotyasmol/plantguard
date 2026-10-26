@@ -8,14 +8,15 @@ describe("observation form", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: "Познакомимся с растением" })).toBeVisible();
+    expect(screen.getByText(/сохранение карточки/i)).toBeVisible();
     expect(screen.getByLabelText("Что изменилось или беспокоит?")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Создать наблюдение" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Проверить данные" })).toBeEnabled();
   });
 
   it("requires a photo before submitting", () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Создать наблюдение" }));
+    fireEvent.click(screen.getByRole("button", { name: "Проверить данные" }));
 
     expect(screen.getByText("Добавь фотографию растения")).toBeVisible();
   });

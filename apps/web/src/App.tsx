@@ -1,11 +1,11 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 
-import { createObservation, ObservationCreated } from "./api";
+import { ObservationValidationResult, validateObservation } from "./api";
 
 type SubmitState =
   | { kind: "idle" }
   | { kind: "submitting" }
-  | { kind: "success"; result: ObservationCreated }
+  | { kind: "success"; result: ObservationValidationResult }
   | { kind: "error"; message: string };
 
 export function App() {
@@ -38,12 +38,12 @@ export function App() {
     setSubmitState({ kind: "submitting" });
 
     try {
-      const result = await createObservation(formData);
+      const result = await validateObservation(formData);
       setSubmitState({ kind: "success", result });
     } catch (error) {
       setSubmitState({
         kind: "error",
-        message: error instanceof Error ? error.message : "Не удалось сохранить наблюдение",
+        message: error instanceof Error ? error.message : "Не удалось проверить данные",
       });
     }
   }
@@ -55,7 +55,7 @@ export function App() {
           <span className="brand-mark" aria-hidden="true">P</span>
           <span>PlantGuard</span>
         </a>
-        <span className="topbar-caption">Дневник здоровья растений</span>
+        <span className="topbar-caption">Технический прототип</span>
       </header>
 
       <main className="page">
@@ -63,8 +63,8 @@ export function App() {
           <p className="step">Первое наблюдение</p>
           <h1 id="page-title">Познакомимся с растением</h1>
           <p>
-            Добавь фотографию и расскажи, что тебя беспокоит. После анализа можно будет
-            подтвердить вид растения и сохранить его историю.
+            Сейчас форма проверяет фотографию и введённые показатели. Сохранение карточки,
+            распознавание вида и анализ состояния будут подключены на следующих этапах.
           </p>
         </section>
 
@@ -120,13 +120,13 @@ export function App() {
           </fieldset>
 
           <button className="primary-action" type="submit" disabled={submitState.kind === "submitting"}>
-            {submitState.kind === "submitting" ? "Сохраняем…" : "Создать наблюдение"}
+            {submitState.kind === "submitting" ? "Проверяем…" : "Проверить данные"}
           </button>
 
           <div className="feedback" aria-live="polite">
             {submitState.kind === "error" && <p className="error">{submitState.message}</p>}
             {submitState.kind === "success" && (
-              <p className="success">{submitState.result.message}. Можно перейти к анализу.</p>
+              <p className="success">{submitState.result.message}.</p>
             )}
           </div>
         </form>

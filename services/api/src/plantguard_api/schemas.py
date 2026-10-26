@@ -14,12 +14,14 @@ class HealthResponse(BaseModel):
     service: str
 
 
-class ObservationStatus(str, Enum):
-    QUEUED = "queued"
+class ValidationStatus(str, Enum):
+    VALIDATED = "validated"
 
 
-class ObservationCreated(BaseModel):
-    observation_id: UUID
-    status: ObservationStatus
+class ObservationValidationResult(BaseModel):
+    request_id: UUID
+    status: ValidationStatus
     received_at: datetime
+    persisted: bool = False
+    analysis_started: bool = False
     message: str

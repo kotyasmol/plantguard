@@ -8,14 +8,19 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .schemas import HealthResponse, ObservationCreated, ObservationStatus, ServiceStatus
+from .schemas import (
+    HealthResponse,
+    ObservationValidationResult,
+    ServiceStatus,
+    ValidationStatus,
+)
 
 settings = get_settings()
 
 app = FastAPI(
     title="PlantGuard API",
     version="0.1.0",
-    description="Application API for plant observations and assessments.",
+    description="Input validation prototype for plant observations.",
 )
 app.add_middleware(
     CORSMiddleware,
@@ -43,17 +48,17 @@ def health() -> HealthResponse:
 
 
 @app.post(
-    "/api/v1/observations",
-    response_model=ObservationCreated,
-    status_code=status.HTTP_202_ACCEPTED,
+    "/api/v1/observations/validate",
+    response_model=ObservationValidationResult,
+    status_code=status.HTTP_200_OK,
     tags=["observations"],
 )
-async def create_observation(
+async def validate_observation(
     photo: Annotated[UploadFile, File()],
     description: Annotated[str, Form()] = "",
     humidity_pct: Annotated[Optional[float], Form()] = None,
     temperature_c: Annotated[Optional[float], Form()] = None,
-) -> ObservationCreated:
+) -> ObservationValidationResult:
     if photo.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -75,9 +80,9 @@ async def create_observation(
             detail="Температура находится вне допустимого диапазона",
         )
 
-    return ObservationCreated(
-        observation_id=uuid4(),
-        status=ObservationStatus.QUEUED,
+    return ObservationValidationResult(
+        request_id=uuid4(),
+        status=ValidationStatus.VALIDATED,
         received_at=datetime.now(timezone.utc),
-        message="Наблюдение принято и ожидает анализа",
+        message="Данные прошли проверку; сохранение и анализ пока не подключены",
     )
