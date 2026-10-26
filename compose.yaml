@@ -85,6 +85,7 @@ services:
     environment:
       PLANTGUARD_ENV: development
       PLANTGUARD_CORS_ORIGINS: http://localhost:5173
+      PLANTGUARD_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-plantguard}:${POSTGRES_PASSWORD:-plantguard}@postgres:5432/${POSTGRES_DB:-plantguard}
       PLANTGUARD_MAX_IMAGE_BYTES: 10485760
     depends_on:
       postgres:
@@ -113,6 +114,34 @@ services:
       timeout: 5s
       retries: 12
       start_period: 5s
+
+  postgres-migrations:
+    image: postgres:16-alpine
+    profiles: ["tests"]
+    environment:
+      POSTGRES_DB: plantguard_migrations
+      POSTGRES_USER: plantguard
+      POSTGRES_PASSWORD: plantguard
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plantguard -d plantguard_migrations"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  migration-test:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    profiles: ["tests"]
+    environment:
+      PLANTGUARD_ENV: test
+      PLANTGUARD_DATABASE_URL: postgresql+psycopg://plantguard:plantguard@postgres-migrations:5432/plantguard_migrations
+    depends_on:
+      postgres-migrations:
+        condition: service_healthy
+    command: ["python", "/workspace/services/api/migration_test.py"]
 
 volumes:
   postgres-data:

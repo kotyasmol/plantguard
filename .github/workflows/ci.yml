@@ -11,6 +11,23 @@ permissions:
 jobs:
   python:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: plantguard_migrations
+          POSTGRES_USER: plantguard
+          POSTGRES_PASSWORD: plantguard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U plantguard -d plantguard_migrations"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PLANTGUARD_ENV: test
+      PLANTGUARD_DATABASE_URL: postgresql+psycopg://plantguard:plantguard@localhost:5432/plantguard_migrations
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,8 +35,9 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install -r requirements-dev.txt
-      - run: python -m ruff check services tests
+      - run: python -m ruff check services tests scripts
       - run: python -m pytest
+      - run: python services/api/migration_test.py
 
   web:
     runs-on: ubuntu-latest
