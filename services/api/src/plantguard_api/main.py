@@ -18,6 +18,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import Settings, get_settings
 from .dependencies import get_photo_link_signer, get_photo_storage
@@ -175,3 +176,11 @@ def delete_photo(
     except (InvalidStorageKey, PhotoNotFoundError):
         raise HTTPException(status_code=404, detail="Фотография не найдена") from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+if application_settings.web_dist_path is not None:
+    app.mount(
+        "/",
+        StaticFiles(directory=application_settings.web_dist_path, html=True, check_dir=True),
+        name="web",
+    )

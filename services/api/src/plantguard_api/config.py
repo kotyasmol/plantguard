@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Optional
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +17,7 @@ class Settings(BaseSettings):
     photo_storage_path: Path = Path(".data/photos")
     photo_url_ttl_seconds: int = Field(default=15 * 60, gt=0, le=24 * 60 * 60)
     photo_signing_key: str = Field(default=DEVELOPMENT_PHOTO_SIGNING_KEY, min_length=32)
+    web_dist_path: Optional[Path] = None
 
     model_config = SettingsConfigDict(env_prefix="PLANTGUARD_", env_file=".env")
 
