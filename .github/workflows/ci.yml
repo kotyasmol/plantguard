@@ -51,3 +51,9 @@ jobs:
       - run: npm run lint --workspace @plantguard/web
       - run: npm run test --workspace @plantguard/web
       - run: npm run build --workspace @plantguard/web
+
+  streams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test-streams

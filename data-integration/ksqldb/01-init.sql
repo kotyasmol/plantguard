@@ -1,3 +1,5 @@
+SET 'ksql.streams.cache.max.bytes.buffering' = '0';
+
 CREATE STREAM IF NOT EXISTS plant_observations (
     event_id VARCHAR,
     event_type VARCHAR,
@@ -39,10 +41,61 @@ FROM plant_observations
 PARTITION BY plant_id
 EMIT CHANGES;
 
+CREATE TABLE IF NOT EXISTS environment_reading_occurrences
+    WITH (
+        KAFKA_TOPIC = 'plant.environment.reading-occurrences.v1',
+        VALUE_FORMAT = 'JSON'
+    ) AS
+SELECT
+    event_id AS event_id_key,
+    AS_VALUE(event_id) AS event_id,
+    LATEST_BY_OFFSET(event_type) AS event_type,
+    LATEST_BY_OFFSET(schema_version) AS schema_version,
+    LATEST_BY_OFFSET(occurred_at) AS occurred_at,
+    LATEST_BY_OFFSET(plant_id) AS plant_id,
+    LATEST_BY_OFFSET(source) AS source,
+    LATEST_BY_OFFSET(humidity_pct) AS humidity_pct,
+    LATEST_BY_OFFSET(temperature_c) AS temperature_c,
+    COUNT(*) AS occurrence_count
+FROM environment_readings
+WINDOW TUMBLING (SIZE 24 HOURS, RETENTION 7 DAYS, GRACE PERIOD 24 HOURS)
+GROUP BY event_id
+EMIT CHANGES;
+
+CREATE STREAM IF NOT EXISTS environment_reading_occurrence_updates (
+    event_id VARCHAR,
+    event_type VARCHAR,
+    schema_version INTEGER,
+    occurred_at BIGINT,
+    plant_id VARCHAR,
+    source VARCHAR,
+    humidity_pct DOUBLE,
+    temperature_c DOUBLE,
+    occurrence_count BIGINT
+) WITH (
+    KAFKA_TOPIC = 'plant.environment.reading-occurrences.v1',
+    VALUE_FORMAT = 'JSON'
+);
+
+CREATE STREAM IF NOT EXISTS environment_readings_deduplicated
+    WITH (KAFKA_TOPIC = 'plant.environment-readings.deduplicated.v1', VALUE_FORMAT = 'JSON') AS
+SELECT
+    event_id,
+    event_type,
+    schema_version,
+    occurred_at,
+    plant_id,
+    source,
+    humidity_pct,
+    temperature_c
+FROM environment_reading_occurrence_updates
+WHERE occurrence_count = 1
+EMIT CHANGES;
+
 CREATE STREAM IF NOT EXISTS environment_readings_by_plant
     WITH (KAFKA_TOPIC = 'plant.environment-readings.by-plant.v1', VALUE_FORMAT = 'JSON') AS
 SELECT *
-FROM environment_readings
+FROM environment_readings_deduplicated
 PARTITION BY plant_id
 EMIT CHANGES;
 
@@ -60,12 +113,13 @@ EMIT CHANGES;
 CREATE TABLE IF NOT EXISTS environment_six_hour_summary
     WITH (KAFKA_TOPIC = 'plant.environment.6h-summary.v1', VALUE_FORMAT = 'JSON') AS
 SELECT
-    plant_id,
+    plant_id AS plant_id_key,
+    AS_VALUE(plant_id) AS plant_id,
     AVG(humidity_pct) AS average_humidity_pct,
     AVG(temperature_c) AS average_temperature_c,
     COUNT(*) AS reading_count
 FROM environment_readings_by_plant
-WINDOW TUMBLING (SIZE 6 HOURS)
+WINDOW TUMBLING (SIZE 6 HOURS, RETENTION 7 DAYS, GRACE PERIOD 24 HOURS)
 GROUP BY plant_id
 EMIT CHANGES;
 
@@ -89,11 +143,12 @@ EMIT CHANGES;
 CREATE STREAM IF NOT EXISTS environment_alerts
     WITH (KAFKA_TOPIC = 'plant.alerts.v1', VALUE_FORMAT = 'JSON') AS
 SELECT
+    plant_id AS plant_id_key,
+    AS_VALUE(plant_id) AS plant_id,
     CONCAT(event_id, ':environment') AS event_id,
     'plant.environment.alerted' AS event_type,
     1 AS schema_version,
     occurred_at,
-    plant_id,
     CASE
         WHEN humidity_pct < 20 THEN 'humidity_too_low'
         WHEN humidity_pct > 85 THEN 'humidity_too_high'

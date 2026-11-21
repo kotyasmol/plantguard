@@ -15,6 +15,7 @@ WORKDIR /workspace
 
 COPY services/mining /workspace/services/mining
 COPY services/api /workspace/services/api
+COPY scripts /workspace/scripts
 COPY --from=web-build /workspace/apps/web/dist /workspace/web-dist
 
 RUN python -m pip install --no-cache-dir /workspace/services/mining /workspace/services/api

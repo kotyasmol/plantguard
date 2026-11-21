@@ -1,4 +1,4 @@
-.PHONY: bootstrap test test-python test-web test-migrations lint build up down db-upgrade db-downgrade ksql-init smoke
+.PHONY: bootstrap test test-python test-web test-migrations test-streams lint build up down db-upgrade db-downgrade ksql-init smoke
 
 bootstrap:
 	python3 -m venv .venv
@@ -17,6 +17,13 @@ test-web:
 test-migrations:
 	@trap 'docker compose -p plantguard-migrations --profile tests down --volumes --remove-orphans >/dev/null' EXIT; \
 		docker compose -p plantguard-migrations --profile tests run --build --rm migration-test
+
+test-streams:
+	@trap 'docker compose -p plantguard-streams down --volumes --remove-orphans >/dev/null' EXIT; \
+		docker compose -p plantguard-streams up --detach --wait kafka ksqldb; \
+		docker compose -p plantguard-streams --profile tools run --rm ksqldb-init; \
+		docker compose -p plantguard-streams run --build --rm --no-deps api \
+			python /workspace/scripts/test_stream_processing.py
 
 lint:
 	.venv/bin/python -m ruff check services tests scripts
