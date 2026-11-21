@@ -1,10 +1,15 @@
-.PHONY: bootstrap test test-python test-web test-migrations test-streams lint build up down db-upgrade db-downgrade ksql-init smoke
+.PHONY: bootstrap dataset-audit test test-python test-web test-migrations test-streams lint build up down db-upgrade db-downgrade ksql-init smoke
 
 bootstrap:
 	python3 -m venv .venv
 	.venv/bin/python -m pip install --upgrade pip
 	.venv/bin/python -m pip install -r requirements-dev.txt
 	npm install
+
+dataset-audit:
+	.venv/bin/python scripts/dataset_registry.py \
+		--manifest datasets/plantguard-v1/manifest.jsonl \
+		--report datasets/plantguard-v1/audit-report.json
 
 test: test-python test-web
 

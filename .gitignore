@@ -26,3 +26,4 @@ __pycache__/
 # Runtime data
 .data/
 *.log
+datasets/**/images/

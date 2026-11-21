@@ -1,0 +1,41 @@
+{
+  "counts": {
+    "epipremnum_aureum": {
+      "test": 50,
+      "train": 60,
+      "validation": 14
+    },
+    "ficus_elastica": {
+      "test": 50,
+      "train": 60,
+      "validation": 14
+    },
+    "monstera_deliciosa": {
+      "test": 50,
+      "train": 60,
+      "validation": 14
+    },
+    "unknown": {
+      "test": 50,
+      "train": 60,
+      "validation": 14
+    }
+  },
+  "cross_split_subjects": 0,
+  "errors": [],
+  "licenses": {
+    "cc-by": 340,
+    "cc-by-sa": 45,
+    "cc0": 111
+  },
+  "ready": true,
+  "sample_count": 496,
+  "schema_version": 1,
+  "subject_count": 496,
+  "supported_labels": [
+    "epipremnum_aureum",
+    "ficus_elastica",
+    "monstera_deliciosa"
+  ],
+  "warnings": []
+}

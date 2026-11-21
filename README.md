@@ -58,6 +58,7 @@ services/api/              прикладной REST API
 services/mining/           интерфейсы моделей и правила оценки
 contracts/events/          версионируемые схемы событий
 data-integration/ksqldb/   потоковые запросы ksqlDB
+datasets/plantguard-v1/    лицензированный реестр изображений и отчёт аудита
 tests/                     проверки архитектуры и контрактов
 docs/                      проектная документация
 ```
