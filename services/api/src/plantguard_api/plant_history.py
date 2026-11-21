@@ -8,13 +8,18 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from plantguard_mining import SPECIES_CATALOG
-from plantguard_mining.ports import ImageReference, PlantIdentifier
+from plantguard_mining.ports import ImageReference, PlantIdentifier, VisualConditionAnalyzer
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .config import Settings, get_settings
 from .database import CareEvent, Observation, Photo, Plant, User, get_session
-from .dependencies import get_photo_link_signer, get_photo_storage, get_plant_identifier
+from .dependencies import (
+    get_photo_link_signer,
+    get_photo_storage,
+    get_plant_identifier,
+    get_visual_condition_analyzer,
+)
 from .events import IdentificationCandidate as EventCandidate
 from .events import build_care_event, build_identification_event, build_observation_event
 from .outbox import enqueue_event
@@ -32,6 +37,8 @@ from .schemas import (
     PlantResult,
     PlantSpeciesUpdate,
     SpeciesCandidateResult,
+    VisualAnalysisResult,
+    VisualFindingResult,
 )
 from .security import get_current_user
 
@@ -288,6 +295,38 @@ def identify_observation(
         candidates=candidates,
         recognized=outcome.recognized,
         needs_review=not outcome.recognized,
+        model_version=outcome.model_version,
+    )
+
+
+@router.post(
+    "/{plant_id}/observations/{observation_id}/analyze-visual",
+    response_model=VisualAnalysisResult,
+)
+def analyze_observation_photo(
+    plant_id: UUID,
+    observation_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    storage: Annotated[PhotoStorage, Depends(get_photo_storage)],
+    analyzer: Annotated[
+        VisualConditionAnalyzer, Depends(get_visual_condition_analyzer)
+    ],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> VisualAnalysisResult:
+    observation = require_observation(session, plant_id, observation_id, current_user.id)
+    if not observation.photos:
+        raise HTTPException(status_code=409, detail="У наблюдения нет фотографии")
+    photo = storage.locate(observation.photos[0].storage_key)
+    outcome = analyzer.analyze(
+        ImageReference(uri=str(photo.path), media_type=photo.media_type)
+    )
+    return VisualAnalysisResult(
+        observation_id=observation.id,
+        analyzable=outcome.analyzable,
+        findings=[
+            VisualFindingResult(code=finding.code, confidence=finding.confidence)
+            for finding in outcome.findings
+        ],
         model_version=outcome.model_version,
     )
 

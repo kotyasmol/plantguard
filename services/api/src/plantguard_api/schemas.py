@@ -141,6 +141,18 @@ class PlantSpeciesUpdate(BaseModel):
     common_name: Optional[str] = Field(default=None, max_length=160)
 
 
+class VisualFindingResult(BaseModel):
+    code: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class VisualAnalysisResult(BaseModel):
+    observation_id: UUID
+    analyzable: bool
+    findings: list[VisualFindingResult]
+    model_version: str
+
+
 class UserCreate(BaseModel):
     email: str = Field(
         min_length=5,

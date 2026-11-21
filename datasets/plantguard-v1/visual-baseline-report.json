@@ -1,0 +1,35 @@
+{
+  "benchmark": "synthetic-regression-only",
+  "case_count": 12,
+  "false_positives": [],
+  "limitations": [
+    "Synthetic cases verify deterministic behavior but do not measure field quality.",
+    "A manually labeled real-photo condition dataset is still required."
+  ],
+  "metrics": {
+    "leaf-dark-spots": {
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 3
+    },
+    "leaf-tissue-damage": {
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 3
+    },
+    "leaf-yellowing": {
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 3
+    }
+  },
+  "model_version": "visual-rules-1.0",
+  "release_quality_measured": false,
+  "schema_version": 1
+}

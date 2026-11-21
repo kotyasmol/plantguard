@@ -15,6 +15,7 @@ from .policy import (
     RiskLevel,
     evaluate,
 )
+from .visual import VisualAnalysisOutcome, VisualConditionBaseline
 
 __all__ = [
     "Assessment",
@@ -25,6 +26,8 @@ __all__ = [
     "KnnPlantIdentifier",
     "RiskLevel",
     "SPECIES_CATALOG",
+    "VisualAnalysisOutcome",
+    "VisualConditionBaseline",
     "evaluate",
     "extract_features",
     "fit_artifact",

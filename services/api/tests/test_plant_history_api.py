@@ -12,11 +12,17 @@ from plantguard_api.dependencies import (
     get_photo_link_signer,
     get_photo_storage,
     get_plant_identifier,
+    get_visual_condition_analyzer,
 )
 from plantguard_api.main import app
 from plantguard_api.photo_links import PhotoLinkSigner
 from plantguard_api.photo_storage import LocalPhotoStorage
-from plantguard_mining import IdentificationCandidate, IdentificationOutcome
+from plantguard_mining import (
+    Evidence,
+    IdentificationCandidate,
+    IdentificationOutcome,
+    VisualAnalysisOutcome,
+)
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -233,3 +239,38 @@ def test_identification_suggests_species_and_manual_correction_confirms_it(histo
             )
         ).all()
     assert len(identification_events) == 1
+
+
+def test_visual_analysis_returns_structured_findings(history_client):
+    class FakeAnalyzer:
+        def analyze(self, _image):
+            return VisualAnalysisOutcome(
+                findings=(Evidence("leaf-yellowing", 0.82, "image:test"),),
+                analyzable=True,
+                model_version="fake-visual-model",
+            )
+
+    app.dependency_overrides[get_visual_condition_analyzer] = lambda: FakeAnalyzer()
+    with TestClient(app) as client:
+        headers = register(client, "visual@example.com")
+        plant_id = client.post(
+            "/api/v1/plants", json={"nickname": "Лист"}, headers=headers
+        ).json()["id"]
+        observation_id = client.post(
+            f"/api/v1/plants/{plant_id}/observations",
+            files={"photo": ("leaf.jpg", image_bytes(), "image/jpeg")},
+            headers=headers,
+        ).json()["id"]
+
+        response = client.post(
+            f"/api/v1/plants/{plant_id}/observations/{observation_id}/analyze-visual",
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "observation_id": observation_id,
+        "analyzable": True,
+        "findings": [{"code": "leaf-yellowing", "confidence": 0.82}],
+        "model_version": "fake-visual-model",
+    }

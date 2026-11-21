@@ -8,6 +8,7 @@ from typing import Protocol
 
 from .identification import IdentificationOutcome
 from .policy import Evidence
+from .visual import VisualAnalysisOutcome
 
 
 @dataclass(frozen=True)
@@ -22,7 +23,7 @@ class PlantIdentifier(Protocol):
 
 
 class VisualConditionAnalyzer(Protocol):
-    def analyze(self, image: ImageReference) -> Sequence[Evidence]:
+    def analyze(self, image: ImageReference) -> VisualAnalysisOutcome:
         """Return visible findings without producing a final diagnosis."""
 
 
