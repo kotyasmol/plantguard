@@ -9,6 +9,7 @@ from PIL import Image
 from plantguard_api.config import Settings, get_settings
 from plantguard_api.database import Base, OutboxEvent, get_session
 from plantguard_api.dependencies import (
+    get_photo_comparator,
     get_photo_link_signer,
     get_photo_storage,
     get_plant_identifier,
@@ -22,6 +23,7 @@ from plantguard_mining import (
     Evidence,
     IdentificationCandidate,
     IdentificationOutcome,
+    PhotoComparisonOutcome,
     TextAnalysisOutcome,
     VisualAnalysisOutcome,
 )
@@ -310,3 +312,39 @@ def test_text_analysis_uses_stored_description(history_client):
     assert response.json()["findings"] == [
         {"code": "leaf-yellowing", "confidence": 0.92}
     ]
+
+
+def test_photo_comparison_rejects_incompatible_pair(history_client):
+    class FakeComparator:
+        def compare(self, _first, _second):
+            return PhotoComparisonOutcome(
+                comparable=False,
+                reasons=("framing_mismatch",),
+                metrics={"structure_similarity": 0.31},
+                model_version="fake-comparator",
+            )
+
+    app.dependency_overrides[get_photo_comparator] = lambda: FakeComparator()
+    with TestClient(app) as client:
+        headers = register(client, "compare@example.com")
+        plant_id = client.post(
+            "/api/v1/plants", json={"nickname": "Сравнение"}, headers=headers
+        ).json()["id"]
+        observation_ids = [
+            client.post(
+                f"/api/v1/plants/{plant_id}/observations",
+                files={"photo": (f"leaf-{index}.jpg", image_bytes(), "image/jpeg")},
+                headers=headers,
+            ).json()["id"]
+            for index in range(2)
+        ]
+
+        response = client.post(
+            f"/api/v1/plants/{plant_id}/observations/{observation_ids[1]}"
+            f"/compare/{observation_ids[0]}",
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["comparable"] is False
+    assert response.json()["reasons"] == ["framing_mismatch"]

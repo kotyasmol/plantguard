@@ -2,6 +2,7 @@ from functools import lru_cache
 
 from plantguard_mining import (
     KnnPlantIdentifier,
+    PhotoComparatorBaseline,
     RussianSymptomExtractor,
     VisualConditionBaseline,
 )
@@ -32,3 +33,8 @@ def get_visual_condition_analyzer() -> VisualConditionBaseline:
 @lru_cache
 def get_symptom_extractor() -> RussianSymptomExtractor:
     return RussianSymptomExtractor()
+
+
+@lru_cache
+def get_photo_comparator() -> PhotoComparatorBaseline:
+    return PhotoComparatorBaseline()

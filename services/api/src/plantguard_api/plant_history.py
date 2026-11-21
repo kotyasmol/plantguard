@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from plantguard_mining import SPECIES_CATALOG
 from plantguard_mining.ports import (
     ImageReference,
+    PhotoComparator,
     PlantIdentifier,
     SymptomExtractor,
     VisualConditionAnalyzer,
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session, selectinload
 from .config import Settings, get_settings
 from .database import CareEvent, Observation, Photo, Plant, User, get_session
 from .dependencies import (
+    get_photo_comparator,
     get_photo_link_signer,
     get_photo_storage,
     get_plant_identifier,
@@ -37,6 +39,7 @@ from .schemas import (
     CareEventResult,
     IdentificationResult,
     ObservationResult,
+    PhotoComparisonResult,
     PhotoResult,
     PlantCreate,
     PlantHistoryResult,
@@ -359,6 +362,43 @@ def analyze_observation_description(
             TextFindingResult(code=finding.code, confidence=finding.confidence)
             for finding in outcome.findings
         ],
+        model_version=outcome.model_version,
+    )
+
+
+@router.post(
+    "/{plant_id}/observations/{current_observation_id}/compare/{reference_observation_id}",
+    response_model=PhotoComparisonResult,
+)
+def compare_observation_photos(
+    plant_id: UUID,
+    current_observation_id: UUID,
+    reference_observation_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    storage: Annotated[PhotoStorage, Depends(get_photo_storage)],
+    comparator: Annotated[PhotoComparator, Depends(get_photo_comparator)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> PhotoComparisonResult:
+    current = require_observation(
+        session, plant_id, current_observation_id, current_user.id
+    )
+    reference = require_observation(
+        session, plant_id, reference_observation_id, current_user.id
+    )
+    if not current.photos or not reference.photos:
+        raise HTTPException(status_code=409, detail="Для сравнения нужны две фотографии")
+    current_photo = storage.locate(current.photos[0].storage_key)
+    reference_photo = storage.locate(reference.photos[0].storage_key)
+    outcome = comparator.compare(
+        ImageReference(uri=str(reference_photo.path), media_type=reference_photo.media_type),
+        ImageReference(uri=str(current_photo.path), media_type=current_photo.media_type),
+    )
+    return PhotoComparisonResult(
+        reference_observation_id=reference.id,
+        current_observation_id=current.id,
+        comparable=outcome.comparable,
+        reasons=list(outcome.reasons),
+        metrics=outcome.metrics,
         model_version=outcome.model_version,
     )
 

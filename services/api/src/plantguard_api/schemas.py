@@ -165,6 +165,15 @@ class TextAnalysisResult(BaseModel):
     model_version: str
 
 
+class PhotoComparisonResult(BaseModel):
+    reference_observation_id: UUID
+    current_observation_id: UUID
+    comparable: bool
+    reasons: list[str]
+    metrics: dict[str, float]
+    model_version: str
+
+
 class UserCreate(BaseModel):
     email: str = Field(
         min_length=5,

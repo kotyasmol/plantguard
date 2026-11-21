@@ -1,5 +1,6 @@
 """Decision-support primitives used by PlantGuard services."""
 
+from .comparison import PhotoComparatorBaseline, PhotoComparisonOutcome
 from .identification import (
     SPECIES_CATALOG,
     IdentificationOutcome,
@@ -25,6 +26,8 @@ __all__ = [
     "IdentificationOutcome",
     "IdentificationCandidate",
     "KnnPlantIdentifier",
+    "PhotoComparatorBaseline",
+    "PhotoComparisonOutcome",
     "RiskLevel",
     "RussianSymptomExtractor",
     "SPECIES_CATALOG",

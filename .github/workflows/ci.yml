@@ -37,6 +37,10 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m ruff check services tests scripts
       - run: python -m pytest
+      - run: python scripts/dataset_registry.py --manifest datasets/plantguard-v1/manifest.jsonl --report datasets/plantguard-v1/audit-report.json
+      - run: python scripts/evaluate_visual_baseline.py
+      - run: python scripts/evaluate_text_baseline.py
+      - run: python scripts/evaluate_comparison_baseline.py
       - run: python services/api/migration_test.py
 
   web:

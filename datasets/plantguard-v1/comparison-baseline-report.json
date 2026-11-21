@@ -1,0 +1,25 @@
+{
+  "benchmark": "synthetic-regression-only",
+  "comparable_recall": 1.0,
+  "confusion": {
+    "false_accept": 0,
+    "false_reject": 0,
+    "true_comparable": 20,
+    "true_incompatible": 40
+  },
+  "failures": [],
+  "incompatible_recall": 1.0,
+  "limitations": [
+    "Synthetic pairs test deterministic gates, not real repeat-photo quality.",
+    "Release evaluation still requires at least 50 manually labeled incompatible pairs."
+  ],
+  "model_version": "photo-comparability-1.0",
+  "pair_count": 60,
+  "reason_counts": {
+    "aspect_ratio_mismatch": 15,
+    "framing_mismatch": 21,
+    "lighting_mismatch": 10
+  },
+  "release_quality_measured": false,
+  "schema_version": 1
+}

@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+from .comparison import PhotoComparisonOutcome
 from .identification import IdentificationOutcome
 from .policy import Evidence
 from .text import TextAnalysisOutcome
@@ -31,6 +32,13 @@ class VisualConditionAnalyzer(Protocol):
 class SymptomExtractor(Protocol):
     def extract(self, description: str) -> TextAnalysisOutcome:
         """Convert free-form text into structured findings."""
+
+
+class PhotoComparator(Protocol):
+    def compare(
+        self, first: ImageReference, second: ImageReference
+    ) -> PhotoComparisonOutcome:
+        """Reject pairs that cannot support a change estimate."""
 
 
 class ExplanationGenerator(Protocol):

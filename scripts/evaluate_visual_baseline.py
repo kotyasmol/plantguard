@@ -91,6 +91,10 @@ def main() -> None:
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    if false_positives or any(
+        item["precision"] < 1.0 or item["recall"] < 1.0 for item in metrics.values()
+    ):
+        raise SystemExit("visual baseline regression detected")
     print(f"[ok] evaluated {report['case_count']} synthetic visual cases")
 
 
