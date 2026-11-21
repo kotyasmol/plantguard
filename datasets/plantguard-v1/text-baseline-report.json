@@ -1,0 +1,40 @@
+{
+  "benchmark": "templated-regression-only",
+  "case_count": 100,
+  "limitations": [
+    "The fixture is templated and is not an independent user-language sample.",
+    "Release evaluation still requires 100 manually labeled descriptions."
+  ],
+  "macro_f1": 1.0,
+  "metrics": {
+    "leaf-dark-spots": {
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "leaf-drop": {
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "leaf-tissue-damage": {
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "leaf-wilting": {
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "leaf-yellowing": {
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0
+    }
+  },
+  "mismatches": [],
+  "model_version": "ru-symptom-regex-1.0",
+  "release_quality_measured": false,
+  "schema_version": 1
+}

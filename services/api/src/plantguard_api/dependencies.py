@@ -1,6 +1,10 @@
 from functools import lru_cache
 
-from plantguard_mining import KnnPlantIdentifier, VisualConditionBaseline
+from plantguard_mining import (
+    KnnPlantIdentifier,
+    RussianSymptomExtractor,
+    VisualConditionBaseline,
+)
 
 from .config import get_settings
 from .photo_links import PhotoLinkSigner
@@ -23,3 +27,8 @@ def get_plant_identifier() -> KnnPlantIdentifier:
 @lru_cache
 def get_visual_condition_analyzer() -> VisualConditionBaseline:
     return VisualConditionBaseline()
+
+
+@lru_cache
+def get_symptom_extractor() -> RussianSymptomExtractor:
+    return RussianSymptomExtractor()

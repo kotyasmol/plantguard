@@ -8,7 +8,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from plantguard_mining import SPECIES_CATALOG
-from plantguard_mining.ports import ImageReference, PlantIdentifier, VisualConditionAnalyzer
+from plantguard_mining.ports import (
+    ImageReference,
+    PlantIdentifier,
+    SymptomExtractor,
+    VisualConditionAnalyzer,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -18,6 +23,7 @@ from .dependencies import (
     get_photo_link_signer,
     get_photo_storage,
     get_plant_identifier,
+    get_symptom_extractor,
     get_visual_condition_analyzer,
 )
 from .events import IdentificationCandidate as EventCandidate
@@ -37,6 +43,8 @@ from .schemas import (
     PlantResult,
     PlantSpeciesUpdate,
     SpeciesCandidateResult,
+    TextAnalysisResult,
+    TextFindingResult,
     VisualAnalysisResult,
     VisualFindingResult,
 )
@@ -325,6 +333,30 @@ def analyze_observation_photo(
         analyzable=outcome.analyzable,
         findings=[
             VisualFindingResult(code=finding.code, confidence=finding.confidence)
+            for finding in outcome.findings
+        ],
+        model_version=outcome.model_version,
+    )
+
+
+@router.post(
+    "/{plant_id}/observations/{observation_id}/analyze-text",
+    response_model=TextAnalysisResult,
+)
+def analyze_observation_description(
+    plant_id: UUID,
+    observation_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    extractor: Annotated[SymptomExtractor, Depends(get_symptom_extractor)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> TextAnalysisResult:
+    observation = require_observation(session, plant_id, observation_id, current_user.id)
+    outcome = extractor.extract(observation.description or "")
+    return TextAnalysisResult(
+        observation_id=observation.id,
+        analyzable=outcome.analyzable,
+        findings=[
+            TextFindingResult(code=finding.code, confidence=finding.confidence)
             for finding in outcome.findings
         ],
         model_version=outcome.model_version,

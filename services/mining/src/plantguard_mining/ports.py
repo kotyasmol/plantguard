@@ -8,6 +8,7 @@ from typing import Protocol
 
 from .identification import IdentificationOutcome
 from .policy import Evidence
+from .text import TextAnalysisOutcome
 from .visual import VisualAnalysisOutcome
 
 
@@ -28,7 +29,7 @@ class VisualConditionAnalyzer(Protocol):
 
 
 class SymptomExtractor(Protocol):
-    def extract(self, description: str) -> Sequence[Evidence]:
+    def extract(self, description: str) -> TextAnalysisOutcome:
         """Convert free-form text into structured findings."""
 
 

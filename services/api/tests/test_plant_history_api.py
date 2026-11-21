@@ -12,6 +12,7 @@ from plantguard_api.dependencies import (
     get_photo_link_signer,
     get_photo_storage,
     get_plant_identifier,
+    get_symptom_extractor,
     get_visual_condition_analyzer,
 )
 from plantguard_api.main import app
@@ -21,6 +22,7 @@ from plantguard_mining import (
     Evidence,
     IdentificationCandidate,
     IdentificationOutcome,
+    TextAnalysisOutcome,
     VisualAnalysisOutcome,
 )
 from sqlalchemy import create_engine, event, select
@@ -274,3 +276,37 @@ def test_visual_analysis_returns_structured_findings(history_client):
         "findings": [{"code": "leaf-yellowing", "confidence": 0.82}],
         "model_version": "fake-visual-model",
     }
+
+
+def test_text_analysis_uses_stored_description(history_client):
+    class FakeExtractor:
+        def extract(self, description):
+            assert description == "Лист начал желтеть"
+            return TextAnalysisOutcome(
+                findings=(Evidence("leaf-yellowing", 0.92, "text:test"),),
+                analyzable=True,
+                model_version="fake-text-model",
+            )
+
+    app.dependency_overrides[get_symptom_extractor] = lambda: FakeExtractor()
+    with TestClient(app) as client:
+        headers = register(client, "text@example.com")
+        plant_id = client.post(
+            "/api/v1/plants", json={"nickname": "Описание"}, headers=headers
+        ).json()["id"]
+        observation_id = client.post(
+            f"/api/v1/plants/{plant_id}/observations",
+            files={"photo": ("leaf.jpg", image_bytes(), "image/jpeg")},
+            data={"description": "Лист начал желтеть"},
+            headers=headers,
+        ).json()["id"]
+
+        response = client.post(
+            f"/api/v1/plants/{plant_id}/observations/{observation_id}/analyze-text",
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["findings"] == [
+        {"code": "leaf-yellowing", "confidence": 0.92}
+    ]

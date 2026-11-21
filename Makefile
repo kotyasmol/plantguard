@@ -1,4 +1,4 @@
-.PHONY: bootstrap dataset-audit train-species-model evaluate-visual-model test test-python test-web test-migrations test-streams lint build up down db-upgrade db-downgrade ksql-init smoke
+.PHONY: bootstrap dataset-audit train-species-model evaluate-visual-model evaluate-text-model test test-python test-web test-migrations test-streams lint build up down db-upgrade db-downgrade ksql-init smoke
 
 bootstrap:
 	python3 -m venv .venv
@@ -16,6 +16,9 @@ train-species-model:
 
 evaluate-visual-model:
 	.venv/bin/python scripts/evaluate_visual_baseline.py
+
+evaluate-text-model:
+	.venv/bin/python scripts/evaluate_text_baseline.py
 
 test: test-python test-web
 

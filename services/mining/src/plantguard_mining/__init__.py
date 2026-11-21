@@ -15,6 +15,7 @@ from .policy import (
     RiskLevel,
     evaluate,
 )
+from .text import RussianSymptomExtractor, TextAnalysisOutcome
 from .visual import VisualAnalysisOutcome, VisualConditionBaseline
 
 __all__ = [
@@ -25,7 +26,9 @@ __all__ = [
     "IdentificationCandidate",
     "KnnPlantIdentifier",
     "RiskLevel",
+    "RussianSymptomExtractor",
     "SPECIES_CATALOG",
+    "TextAnalysisOutcome",
     "VisualAnalysisOutcome",
     "VisualConditionBaseline",
     "evaluate",

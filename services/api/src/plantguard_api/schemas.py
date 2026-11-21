@@ -153,6 +153,18 @@ class VisualAnalysisResult(BaseModel):
     model_version: str
 
 
+class TextFindingResult(BaseModel):
+    code: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class TextAnalysisResult(BaseModel):
+    observation_id: UUID
+    analyzable: bool
+    findings: list[TextFindingResult]
+    model_version: str
+
+
 class UserCreate(BaseModel):
     email: str = Field(
         min_length=5,
