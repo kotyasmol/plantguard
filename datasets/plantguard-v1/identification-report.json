@@ -1,0 +1,75 @@
+{
+  "algorithm": "standardized visual descriptors with distance-weighted k-NN",
+  "model_version": "species-knn-1.0",
+  "neighbors": 7,
+  "recognition_threshold": 0.29,
+  "release_targets_met": {
+    "macro_f1_at_least_0_85": false,
+    "unknown_recall_at_least_0_90": false
+  },
+  "schema_version": 1,
+  "test": {
+    "accuracy": 0.445,
+    "macro_f1": 0.4492,
+    "per_class": {
+      "epipremnum_aureum": {
+        "f1": 0.4045,
+        "precision": 0.4615,
+        "recall": 0.36,
+        "support": 50
+      },
+      "ficus_elastica": {
+        "f1": 0.431,
+        "precision": 0.3788,
+        "recall": 0.5,
+        "support": 50
+      },
+      "monstera_deliciosa": {
+        "f1": 0.4248,
+        "precision": 0.381,
+        "recall": 0.48,
+        "support": 50
+      },
+      "unknown": {
+        "f1": 0.5366,
+        "precision": 0.6875,
+        "recall": 0.44,
+        "support": 50
+      }
+    }
+  },
+  "test_ece": 0.1243,
+  "test_samples": 200,
+  "training_samples": 240,
+  "validation": {
+    "accuracy": 0.4821,
+    "macro_f1": 0.4673,
+    "per_class": {
+      "epipremnum_aureum": {
+        "f1": 0.2857,
+        "precision": 0.4286,
+        "recall": 0.2143,
+        "support": 14
+      },
+      "ficus_elastica": {
+        "f1": 0.5294,
+        "precision": 0.45,
+        "recall": 0.6429,
+        "support": 14
+      },
+      "monstera_deliciosa": {
+        "f1": 0.4828,
+        "precision": 0.4667,
+        "recall": 0.5,
+        "support": 14
+      },
+      "unknown": {
+        "f1": 0.5714,
+        "precision": 0.5714,
+        "recall": 0.5714,
+        "support": 14
+      }
+    }
+  },
+  "validation_samples": 56
+}

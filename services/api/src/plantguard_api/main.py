@@ -46,7 +46,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=application_settings.allowed_origins,
     allow_credentials=True,
-    allow_methods=["DELETE", "GET", "POST"],
+    allow_methods=["DELETE", "GET", "PATCH", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
 app.include_router(users_router)

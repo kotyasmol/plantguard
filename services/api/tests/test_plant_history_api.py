@@ -8,10 +8,15 @@ from fastapi.testclient import TestClient
 from PIL import Image
 from plantguard_api.config import Settings, get_settings
 from plantguard_api.database import Base, OutboxEvent, get_session
-from plantguard_api.dependencies import get_photo_link_signer, get_photo_storage
+from plantguard_api.dependencies import (
+    get_photo_link_signer,
+    get_photo_storage,
+    get_plant_identifier,
+)
 from plantguard_api.main import app
 from plantguard_api.photo_links import PhotoLinkSigner
 from plantguard_api.photo_storage import LocalPhotoStorage
+from plantguard_mining import IdentificationCandidate, IdentificationOutcome
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -167,3 +172,64 @@ def test_deleting_profile_removes_owned_data_and_photos(history_client):
         assert client.delete("/api/v1/users/me", headers=headers).status_code == 204
         assert client.get(read_url).status_code == 404
         assert client.get(f"/api/v1/plants/{plant_id}", headers=headers).status_code == 401
+
+
+def test_identification_suggests_species_and_manual_correction_confirms_it(history_client):
+    class FakeIdentifier:
+        def identify(self, _image):
+            return IdentificationOutcome(
+                candidates=(
+                    IdentificationCandidate(
+                        "monstera_deliciosa", "Монстера деликатесная", 0.91
+                    ),
+                    IdentificationCandidate(
+                        "epipremnum_aureum", "Эпипремнум золотистый", 0.06
+                    ),
+                    IdentificationCandidate(
+                        "ficus_elastica", "Фикус каучуконосный", 0.03
+                    ),
+                ),
+                recognized=True,
+                model_version="fake-species-model",
+            )
+
+    app.dependency_overrides[get_plant_identifier] = lambda: FakeIdentifier()
+    with TestClient(app) as client:
+        headers = register(client, "identify@example.com")
+        plant_id = client.post(
+            "/api/v1/plants", json={"nickname": "Неизвестное растение"}, headers=headers
+        ).json()["id"]
+        observation = client.post(
+            f"/api/v1/plants/{plant_id}/observations",
+            files={"photo": ("plant.jpg", image_bytes(), "image/jpeg")},
+            headers=headers,
+        ).json()
+
+        identification = client.post(
+            f"/api/v1/plants/{plant_id}/observations/{observation['id']}/identify",
+            headers=headers,
+        )
+        suggested = client.get(f"/api/v1/plants/{plant_id}", headers=headers)
+        corrected = client.patch(
+            f"/api/v1/plants/{plant_id}/species",
+            json={
+                "scientific_name": "Epipremnum aureum",
+                "common_name": "Эпипремнум золотистый",
+            },
+            headers=headers,
+        )
+
+    assert identification.status_code == 200
+    assert identification.json()["recognized"] is True
+    assert len(identification.json()["candidates"]) == 3
+    assert suggested.json()["species_status"] == "suggested"
+    assert suggested.json()["species_scientific_name"] == "Monstera deliciosa"
+    assert corrected.json()["species_status"] == "confirmed"
+    assert corrected.json()["species_scientific_name"] == "Epipremnum aureum"
+    with history_client() as session:
+        identification_events = session.scalars(
+            select(OutboxEvent).where(
+                OutboxEvent.topic == "plant.identification-results.v1"
+            )
+        ).all()
+    assert len(identification_events) == 1

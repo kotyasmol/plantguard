@@ -121,6 +121,26 @@ class PlantHistoryResult(BaseModel):
     care_events: list[CareEventResult]
 
 
+class SpeciesCandidateResult(BaseModel):
+    species_code: str
+    scientific_name: str
+    common_name: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class IdentificationResult(BaseModel):
+    observation_id: UUID
+    candidates: list[SpeciesCandidateResult] = Field(min_length=1, max_length=3)
+    recognized: bool
+    needs_review: bool
+    model_version: str
+
+
+class PlantSpeciesUpdate(BaseModel):
+    scientific_name: str = Field(min_length=1, max_length=160)
+    common_name: Optional[str] = Field(default=None, max_length=160)
+
+
 class UserCreate(BaseModel):
     email: str = Field(
         min_length=5,

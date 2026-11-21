@@ -140,3 +140,24 @@ def build_care_event(
         action_type=action_type,
         notes=notes,
     )
+
+
+def build_identification_event(
+    *,
+    observation_id: UUID,
+    plant_id: UUID,
+    candidates: list[IdentificationCandidate],
+    needs_review: bool,
+    model_version: str,
+) -> PlantIdentificationResultEvent:
+    return PlantIdentificationResultEvent(
+        event_id=str(uuid4()),
+        event_type="plant.identification.completed",
+        schema_version=1,
+        occurred_at=unix_milliseconds(datetime.now(timezone.utc)),
+        observation_id=observation_id,
+        plant_id=plant_id,
+        candidates=candidates,
+        needs_review=needs_review,
+        model_version=model_version,
+    )

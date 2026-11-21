@@ -7,13 +7,16 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from plantguard_mining import SPECIES_CATALOG
+from plantguard_mining.ports import ImageReference, PlantIdentifier
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .config import Settings, get_settings
 from .database import CareEvent, Observation, Photo, Plant, User, get_session
-from .dependencies import get_photo_link_signer, get_photo_storage
-from .events import build_care_event, build_observation_event
+from .dependencies import get_photo_link_signer, get_photo_storage, get_plant_identifier
+from .events import IdentificationCandidate as EventCandidate
+from .events import build_care_event, build_identification_event, build_observation_event
 from .outbox import enqueue_event
 from .photo_links import PhotoLinkSigner
 from .photo_storage import PhotoStorage
@@ -21,11 +24,14 @@ from .photo_validation import PhotoValidationError, validate_photo_upload
 from .schemas import (
     CareEventCreate,
     CareEventResult,
+    IdentificationResult,
     ObservationResult,
     PhotoResult,
     PlantCreate,
     PlantHistoryResult,
     PlantResult,
+    PlantSpeciesUpdate,
+    SpeciesCandidateResult,
 )
 from .security import get_current_user
 
@@ -39,6 +45,27 @@ def require_plant(session: Session, plant_id: UUID, owner_id: UUID) -> Plant:
     if plant is None:
         raise HTTPException(status_code=404, detail="Растение не найдено")
     return plant
+
+
+def require_observation(
+    session: Session,
+    plant_id: UUID,
+    observation_id: UUID,
+    owner_id: UUID,
+) -> Observation:
+    observation = session.scalar(
+        select(Observation)
+        .join(Observation.plant)
+        .where(
+            Observation.id == observation_id,
+            Observation.plant_id == plant_id,
+            Plant.owner_id == owner_id,
+        )
+        .options(selectinload(Observation.photos))
+    )
+    if observation is None:
+        raise HTTPException(status_code=404, detail="Наблюдение не найдено")
+    return observation
 
 
 def photo_result(
@@ -106,6 +133,22 @@ def get_plant(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> Plant:
     return require_plant(session, plant_id, current_user.id)
+
+
+@router.patch("/{plant_id}/species", response_model=PlantResult)
+def confirm_plant_species(
+    plant_id: UUID,
+    payload: PlantSpeciesUpdate,
+    session: Annotated[Session, Depends(get_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> Plant:
+    plant = require_plant(session, plant_id, current_user.id)
+    plant.species_scientific_name = payload.scientific_name
+    plant.species_common_name = payload.common_name
+    plant.species_status = "confirmed"
+    session.commit()
+    session.refresh(plant)
+    return plant
 
 
 @router.post(
@@ -185,6 +228,68 @@ async def create_observation(
         storage.delete(stored.storage_key)
         raise
     return observation_result(request, observation, signer, configuration)
+
+
+@router.post(
+    "/{plant_id}/observations/{observation_id}/identify",
+    response_model=IdentificationResult,
+)
+def identify_observation(
+    plant_id: UUID,
+    observation_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    storage: Annotated[PhotoStorage, Depends(get_photo_storage)],
+    identifier: Annotated[PlantIdentifier, Depends(get_plant_identifier)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> IdentificationResult:
+    plant = require_plant(session, plant_id, current_user.id)
+    observation = require_observation(session, plant_id, observation_id, current_user.id)
+    if not observation.photos:
+        raise HTTPException(status_code=409, detail="У наблюдения нет фотографии")
+    photo = storage.locate(observation.photos[0].storage_key)
+    outcome = identifier.identify(
+        ImageReference(uri=str(photo.path), media_type=photo.media_type)
+    )
+    candidates = [
+        SpeciesCandidateResult(
+            species_code=candidate.species_code,
+            scientific_name=SPECIES_CATALOG[candidate.species_code].scientific_name,
+            common_name=SPECIES_CATALOG[candidate.species_code].common_name,
+            confidence=candidate.confidence,
+        )
+        for candidate in outcome.candidates
+    ]
+    if outcome.recognized:
+        top = candidates[0]
+        plant.species_scientific_name = top.scientific_name
+        plant.species_common_name = top.common_name
+        plant.species_status = "suggested"
+    enqueue_event(
+        session,
+        topic="plant.identification-results.v1",
+        event=build_identification_event(
+            observation_id=observation.id,
+            plant_id=plant.id,
+            candidates=[
+                EventCandidate(
+                    scientific_name=candidate.scientific_name,
+                    common_name=candidate.common_name,
+                    confidence=candidate.confidence,
+                )
+                for candidate in candidates
+            ],
+            needs_review=not outcome.recognized,
+            model_version=outcome.model_version,
+        ),
+    )
+    session.commit()
+    return IdentificationResult(
+        observation_id=observation.id,
+        candidates=candidates,
+        recognized=outcome.recognized,
+        needs_review=not outcome.recognized,
+        model_version=outcome.model_version,
+    )
 
 
 @router.post(

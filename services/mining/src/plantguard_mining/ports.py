@@ -6,7 +6,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-from .policy import Evidence, IdentificationCandidate
+from .identification import IdentificationOutcome
+from .policy import Evidence
 
 
 @dataclass(frozen=True)
@@ -16,8 +17,8 @@ class ImageReference:
 
 
 class PlantIdentifier(Protocol):
-    def identify(self, image: ImageReference) -> Sequence[IdentificationCandidate]:
-        """Return ordered plant species candidates."""
+    def identify(self, image: ImageReference) -> IdentificationOutcome:
+        """Return ordered candidates and an explicit recognition decision."""
 
 
 class VisualConditionAnalyzer(Protocol):

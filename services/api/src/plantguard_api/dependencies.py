@@ -1,3 +1,7 @@
+from functools import lru_cache
+
+from plantguard_mining import KnnPlantIdentifier
+
 from .config import get_settings
 from .photo_links import PhotoLinkSigner
 from .photo_storage import LocalPhotoStorage, PhotoStorage
@@ -9,3 +13,8 @@ def get_photo_storage() -> PhotoStorage:
 
 def get_photo_link_signer() -> PhotoLinkSigner:
     return PhotoLinkSigner(get_settings().photo_signing_key)
+
+
+@lru_cache
+def get_plant_identifier() -> KnnPlantIdentifier:
+    return KnnPlantIdentifier.load_default()

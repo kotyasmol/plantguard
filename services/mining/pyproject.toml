@@ -7,6 +7,10 @@ name = "plantguard-mining"
 version = "0.1.0"
 description = "Decision policy and model interfaces for PlantGuard"
 requires-python = ">=3.9"
+dependencies = ["Pillow==11.3.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+plantguard_mining = ["models/*.json"]
