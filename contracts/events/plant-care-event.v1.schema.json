@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plantguard.local/contracts/plant-care-event.v1.schema.json",
+  "title": "Plant care event recorded",
+  "x-kafka-topic": "plant.care-events.v1",
+  "x-kafka-key": "plant_id",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "occurred_at",
+    "care_event_id",
+    "plant_id",
+    "action_type"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "plant.care-event.recorded" },
+    "schema_version": { "const": 1 },
+    "occurred_at": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix time in milliseconds"
+    },
+    "care_event_id": { "type": "string", "format": "uuid" },
+    "plant_id": { "type": "string", "format": "uuid" },
+    "action_type": {
+      "type": "string",
+      "enum": ["watered", "fertilized", "repotted", "moved", "pruned", "treated", "other"]
+    },
+    "notes": { "type": ["string", "null"], "maxLength": 2000 }
+  }
+}

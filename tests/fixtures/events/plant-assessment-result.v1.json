@@ -1,0 +1,15 @@
+{
+  "event_id": "c609eff2-ce3f-48af-92b5-f05852f8732e",
+  "event_type": "plant.assessment.completed",
+  "schema_version": 1,
+  "occurred_at": 1770010800000,
+  "assessment_id": "ee8c0be2-a622-4dc2-82f9-b7ad5abe92d2",
+  "observation_id": "ec94d086-fc15-4247-833e-92fe099d3d81",
+  "plant_id": "c54ec720-b72c-4cf5-a450-45d72d9f2155",
+  "status": "needs_review",
+  "risk_level": "medium",
+  "finding_code": "leaf-yellowing",
+  "finding_confidence": 0.78,
+  "explanation": "На нижних листьях обнаружено пожелтение; требуется проверить влажность грунта.",
+  "model_version": "visual-signs-0.1.0"
+}

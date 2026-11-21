@@ -2,6 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://plantguard.local/contracts/plant-alert.v1.schema.json",
   "title": "Plant environment alert",
+  "x-kafka-topic": "plant.alerts.v1",
+  "x-kafka-key": "plant_id",
   "type": "object",
   "additionalProperties": false,
   "required": [

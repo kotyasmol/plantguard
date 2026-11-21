@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plantguard.local/contracts/plant-assessment-result.v1.schema.json",
+  "title": "Plant assessment completed",
+  "x-kafka-topic": "plant.assessment-results.v1",
+  "x-kafka-key": "plant_id",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "occurred_at",
+    "assessment_id",
+    "observation_id",
+    "plant_id",
+    "status",
+    "risk_level",
+    "finding_code",
+    "finding_confidence",
+    "explanation",
+    "model_version"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "plant.assessment.completed" },
+    "schema_version": { "const": 1 },
+    "occurred_at": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix time in milliseconds"
+    },
+    "assessment_id": { "type": "string", "format": "uuid" },
+    "observation_id": { "type": "string", "format": "uuid" },
+    "plant_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["succeeded", "needs_review", "failed"] },
+    "risk_level": { "type": "string", "enum": ["unknown", "low", "medium", "high"] },
+    "finding_code": { "type": ["string", "null"], "maxLength": 80 },
+    "finding_confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "explanation": { "type": ["string", "null"], "maxLength": 4000 },
+    "model_version": { "type": ["string", "null"], "maxLength": 120 }
+  }
+}

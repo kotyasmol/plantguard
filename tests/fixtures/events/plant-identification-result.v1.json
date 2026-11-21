@@ -1,0 +1,22 @@
+{
+  "event_id": "ab7bd558-7145-47c2-b87e-2d9ada164c5a",
+  "event_type": "plant.identification.completed",
+  "schema_version": 1,
+  "occurred_at": 1770007200000,
+  "observation_id": "ec94d086-fc15-4247-833e-92fe099d3d81",
+  "plant_id": "c54ec720-b72c-4cf5-a450-45d72d9f2155",
+  "candidates": [
+    {
+      "scientific_name": "Monstera deliciosa",
+      "common_name": "Монстера деликатесная",
+      "confidence": 0.91
+    },
+    {
+      "scientific_name": "Rhaphidophora tetrasperma",
+      "common_name": "Рафидофора четырёхсемянная",
+      "confidence": 0.06
+    }
+  ],
+  "needs_review": false,
+  "model_version": "species-classifier-0.1.0"
+}

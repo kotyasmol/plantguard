@@ -1,0 +1,10 @@
+{
+  "event_id": "8b6f0bcb-54ea-4f4b-b162-09b40d95f98b",
+  "event_type": "plant.care-event.recorded",
+  "schema_version": 1,
+  "occurred_at": 1770003600000,
+  "care_event_id": "01391de5-7fd3-4a43-ad05-a93ee84925b6",
+  "plant_id": "c54ec720-b72c-4cf5-a450-45d72d9f2155",
+  "action_type": "watered",
+  "notes": "Полив 250 мл"
+}
