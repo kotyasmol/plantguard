@@ -10,7 +10,7 @@ from plantguard_api.config import get_settings
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 
-EXPECTED_TABLES = {"plants", "observations", "photos", "care_events", "assessments"}
+EXPECTED_TABLES = {"users", "plants", "observations", "photos", "care_events", "assessments"}
 EXPECTED_CHECKS = {
     "plants": {"ck_plants_species_status"},
     "observations": {
@@ -47,8 +47,19 @@ def assert_schema(engine: Engine) -> None:
 
 def assert_cascade_delete(engine: Engine) -> None:
     with engine.begin() as connection:
+        user_id = connection.execute(
+            text(
+                "INSERT INTO users (email, display_name, token_hash) "
+                "VALUES ('migration@example.com', 'Migration user', :token_hash) RETURNING id"
+            ),
+            {"token_hash": "1" * 64},
+        ).scalar_one()
         plant_id = connection.execute(
-            text("INSERT INTO plants (nickname) VALUES ('Migration test') RETURNING id")
+            text(
+                "INSERT INTO plants (owner_id, nickname) "
+                "VALUES (:owner_id, 'Migration test') RETURNING id"
+            ),
+            {"owner_id": user_id},
         ).scalar_one()
         observation_id = connection.execute(
             text(

@@ -22,6 +22,14 @@ def image_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def register(client: TestClient, email: str = "owner@example.com") -> dict[str, str]:
+    response = client.post(
+        "/api/v1/users", json={"email": email, "display_name": "Владелец"}
+    )
+    assert response.status_code == 201
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
 @pytest.fixture
 def history_client(tmp_path: Path):
     database_path = tmp_path / "history.sqlite3"
@@ -59,9 +67,11 @@ def history_client(tmp_path: Path):
 
 def test_plant_history_survives_api_restart(history_client):
     with TestClient(app) as client:
+        headers = register(client)
         plant = client.post(
             "/api/v1/plants",
             json={"nickname": "Моя монстера", "species_status": "unconfirmed"},
+            headers=headers,
         )
         assert plant.status_code == 201
         plant_id = plant.json()["id"]
@@ -70,20 +80,25 @@ def test_plant_history_survives_api_restart(history_client):
             f"/api/v1/plants/{plant_id}/observations",
             files={"photo": ("first.jpg", image_bytes(), "image/jpeg")},
             data={"description": "Появилось жёлтое пятно", "humidity_pct": "78"},
+            headers=headers,
         )
         second = client.post(
             f"/api/v1/plants/{plant_id}/observations",
             files={"photo": ("repeat.jpg", image_bytes(), "image/jpeg")},
             data={"description": "Повторный снимок", "temperature_c": "23.5"},
+            headers=headers,
         )
         care = client.post(
             f"/api/v1/plants/{plant_id}/care-events",
             json={"action_type": "watered", "notes": "Полив 250 мл"},
+            headers=headers,
         )
         assert first.status_code == second.status_code == care.status_code == 201
 
     with TestClient(app) as restarted_client:
-        history = restarted_client.get(f"/api/v1/plants/{plant_id}/history")
+        history = restarted_client.get(
+            f"/api/v1/plants/{plant_id}/history", headers=headers
+        )
 
     assert history.status_code == 200
     payload = history.json()
@@ -98,6 +113,49 @@ def test_plant_history_survives_api_restart(history_client):
 
 def test_history_returns_not_found_for_unknown_plant(history_client):
     with TestClient(app) as client:
-        response = client.get("/api/v1/plants/00000000-0000-0000-0000-000000000000/history")
+        headers = register(client)
+        response = client.get(
+            "/api/v1/plants/00000000-0000-0000-0000-000000000000/history",
+            headers=headers,
+        )
 
     assert response.status_code == 404
+
+
+def test_users_cannot_access_or_modify_each_others_plants(history_client):
+    with TestClient(app) as client:
+        first_user = register(client, "first@example.com")
+        second_user = register(client, "second@example.com")
+        plant = client.post(
+            "/api/v1/plants", json={"nickname": "Частный фикус"}, headers=first_user
+        )
+        plant_id = plant.json()["id"]
+
+        assert client.get(f"/api/v1/plants/{plant_id}", headers=second_user).status_code == 404
+        assert (
+            client.post(
+                f"/api/v1/plants/{plant_id}/care-events",
+                json={"action_type": "watered"},
+                headers=second_user,
+            ).status_code
+            == 404
+        )
+        assert client.get(f"/api/v1/plants/{plant_id}", headers=first_user).status_code == 200
+
+
+def test_deleting_profile_removes_owned_data_and_photos(history_client):
+    with TestClient(app) as client:
+        headers = register(client, "delete@example.com")
+        plant_id = client.post(
+            "/api/v1/plants", json={"nickname": "Удаляемое растение"}, headers=headers
+        ).json()["id"]
+        observation = client.post(
+            f"/api/v1/plants/{plant_id}/observations",
+            files={"photo": ("private.jpg", image_bytes(), "image/jpeg")},
+            headers=headers,
+        ).json()
+        read_url = observation["photos"][0]["read_url"]
+
+        assert client.delete("/api/v1/users/me", headers=headers).status_code == 204
+        assert client.get(read_url).status_code == 404
+        assert client.get(f"/api/v1/plants/{plant_id}", headers=headers).status_code == 401

@@ -119,3 +119,26 @@ class PlantHistoryResult(BaseModel):
     plant: PlantResult
     observations: list[ObservationResult]
     care_events: list[CareEventResult]
+
+
+class UserCreate(BaseModel):
+    email: str = Field(
+        min_length=5,
+        max_length=320,
+        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    )
+    display_name: str = Field(min_length=1, max_length=100)
+
+
+class UserResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    email: str
+    display_name: str
+    created_at: datetime
+
+
+class UserRegistrationResult(UserResult):
+    access_token: str
+    token_type: str = "bearer"

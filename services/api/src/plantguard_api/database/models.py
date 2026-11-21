@@ -41,13 +41,11 @@ class CreatedAtMixin:
     )
 
 
-class Plant(CreatedAtMixin, Base):
-    __tablename__ = "plants"
+class User(CreatedAtMixin, Base):
+    __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint(
-            "species_status IN ('unconfirmed', 'suggested', 'confirmed')",
-            name="ck_plants_species_status",
-        ),
+        UniqueConstraint("email", name="uq_users_email"),
+        UniqueConstraint("token_hash", name="uq_users_token_hash"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -55,6 +53,34 @@ class Plant(CreatedAtMixin, Base):
         primary_key=True,
         default=uuid4,
         server_default=text("gen_random_uuid()"),
+    )
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    plants: Mapped[list[Plant]] = relationship(
+        back_populates="owner", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class Plant(CreatedAtMixin, Base):
+    __tablename__ = "plants"
+    __table_args__ = (
+        CheckConstraint(
+            "species_status IN ('unconfirmed', 'suggested', 'confirmed')",
+            name="ck_plants_species_status",
+        ),
+        Index("ix_plants_owner_id", "owner_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    owner_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
     species_scientific_name: Mapped[Optional[str]] = mapped_column(String(160))
@@ -66,6 +92,7 @@ class Plant(CreatedAtMixin, Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    owner: Mapped[User] = relationship(back_populates="plants")
     observations: Mapped[list[Observation]] = relationship(
         back_populates="plant", cascade="all, delete-orphan", passive_deletes=True
     )

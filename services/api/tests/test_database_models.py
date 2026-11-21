@@ -6,6 +6,7 @@ def test_domain_model_contains_expected_tables():
     configure_mappers()
 
     assert set(Base.metadata.tables) == {
+        "users",
         "plants",
         "observations",
         "photos",
@@ -26,3 +27,4 @@ def test_dependent_records_are_deleted_with_their_parent():
     assert foreign_keys[("care_events", "plant_id")] == "CASCADE"
     assert foreign_keys[("assessments", "observation_id")] == "CASCADE"
     assert foreign_keys[("assessments", "previous_assessment_id")] == "SET NULL"
+    assert foreign_keys[("plants", "owner_id")] == "CASCADE"

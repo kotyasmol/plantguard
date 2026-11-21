@@ -33,6 +33,7 @@ from .schemas import (
     ServiceStatus,
     ValidationStatus,
 )
+from .users import router as users_router
 
 application_settings = get_settings()
 
@@ -46,8 +47,9 @@ app.add_middleware(
     allow_origins=application_settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["DELETE", "GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+app.include_router(users_router)
 app.include_router(plant_history_router)
 
 
