@@ -25,6 +25,7 @@ from .dependencies import get_photo_link_signer, get_photo_storage
 from .photo_links import PhotoLinkSigner
 from .photo_storage import InvalidStorageKey, PhotoNotFoundError, PhotoStorage
 from .photo_validation import PhotoValidationError, validate_photo_upload
+from .plant_history import router as plant_history_router
 from .schemas import (
     HealthResponse,
     ObservationValidationResult,
@@ -47,6 +48,7 @@ app.add_middleware(
     allow_methods=["DELETE", "GET", "POST"],
     allow_headers=["Content-Type"],
 )
+app.include_router(plant_history_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])

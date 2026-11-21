@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
+from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ServiceStatus(str, Enum):
@@ -37,3 +40,82 @@ class PhotoUploadResult(BaseModel):
     read_url: str
     delete_url: str
     links_expire_at: datetime
+
+
+class SpeciesStatus(str, Enum):
+    UNCONFIRMED = "unconfirmed"
+    SUGGESTED = "suggested"
+    CONFIRMED = "confirmed"
+
+
+class CareActionType(str, Enum):
+    WATERED = "watered"
+    FERTILIZED = "fertilized"
+    REPOTTED = "repotted"
+    MOVED = "moved"
+    PRUNED = "pruned"
+    TREATED = "treated"
+    OTHER = "other"
+
+
+class PlantCreate(BaseModel):
+    nickname: str = Field(min_length=1, max_length=100)
+    species_scientific_name: Optional[str] = Field(default=None, max_length=160)
+    species_common_name: Optional[str] = Field(default=None, max_length=160)
+    species_status: SpeciesStatus = SpeciesStatus.UNCONFIRMED
+
+
+class PlantResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    nickname: str
+    species_scientific_name: Optional[str]
+    species_common_name: Optional[str]
+    species_status: SpeciesStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+class PhotoResult(BaseModel):
+    id: UUID
+    storage_key: str
+    original_filename: str
+    media_type: str
+    size_bytes: int
+    checksum_sha256: str
+    read_url: str
+
+
+class ObservationResult(BaseModel):
+    id: UUID
+    plant_id: UUID
+    description: Optional[str]
+    humidity_pct: Optional[float]
+    temperature_c: Optional[float]
+    observed_at: datetime
+    created_at: datetime
+    photos: list[PhotoResult]
+
+
+class CareEventCreate(BaseModel):
+    action_type: CareActionType
+    notes: Optional[str] = Field(default=None, max_length=2000)
+    performed_at: Optional[datetime] = None
+
+
+class CareEventResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    plant_id: UUID
+    action_type: CareActionType
+    notes: Optional[str]
+    performed_at: datetime
+    created_at: datetime
+
+
+class PlantHistoryResult(BaseModel):
+    plant: PlantResult
+    observations: list[ObservationResult]
+    care_events: list[CareEventResult]
