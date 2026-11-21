@@ -6,11 +6,13 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     MetaData,
     Numeric,
     String,
@@ -252,3 +254,29 @@ class Assessment(CreatedAtMixin, Base):
     previous_assessment: Mapped[Optional[Assessment]] = relationship(
         remote_side=[id], foreign_keys=[previous_assessment_id]
     )
+
+
+class OutboxEvent(CreatedAtMixin, Base):
+    __tablename__ = "outbox_events"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'published')",
+            name="ck_outbox_events_status",
+        ),
+        CheckConstraint("attempts >= 0", name="ck_outbox_events_attempts_nonnegative"),
+        Index("ix_outbox_events_pending", "status", "available_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    topic: Mapped[str] = mapped_column(String(160), nullable=False)
+    message_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending", server_default="pending"
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[Optional[str]] = mapped_column(Text)

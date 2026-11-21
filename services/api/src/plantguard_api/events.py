@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Literal, Optional
-from uuid import UUID
+from urllib.parse import quote
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -87,3 +90,53 @@ EVENT_MODELS: dict[str, type[StrictEvent]] = {
     "plant-identification-result.v1.schema.json": PlantIdentificationResultEvent,
     "plant-observation.v1.schema.json": PlantObservationEvent,
 }
+
+
+def unix_milliseconds(value: datetime) -> int:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return int(value.timestamp() * 1000)
+
+
+def build_observation_event(
+    *,
+    observation_id: UUID,
+    plant_id: UUID,
+    storage_key: str,
+    observed_at: datetime,
+    description: Optional[str],
+    humidity_pct: Optional[Decimal],
+    temperature_c: Optional[Decimal],
+) -> PlantObservationEvent:
+    return PlantObservationEvent(
+        event_id=str(uuid4()),
+        event_type="plant.observation.created",
+        schema_version=1,
+        occurred_at=unix_milliseconds(observed_at),
+        observation_id=observation_id,
+        plant_id=plant_id,
+        photo_uri=f"plantguard://photos/{quote(storage_key, safe='/')}",
+        description=description,
+        humidity_pct=float(humidity_pct) if humidity_pct is not None else None,
+        temperature_c=float(temperature_c) if temperature_c is not None else None,
+    )
+
+
+def build_care_event(
+    *,
+    care_event_id: UUID,
+    plant_id: UUID,
+    action_type: str,
+    notes: Optional[str],
+    performed_at: datetime,
+) -> PlantCareEvent:
+    return PlantCareEvent(
+        event_id=str(uuid4()),
+        event_type="plant.care-event.recorded",
+        schema_version=1,
+        occurred_at=unix_milliseconds(performed_at),
+        care_event_id=care_event_id,
+        plant_id=plant_id,
+        action_type=action_type,
+        notes=notes,
+    )

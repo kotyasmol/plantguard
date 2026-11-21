@@ -1,6 +1,6 @@
 """Database models and persistence configuration."""
 
-from .models import Assessment, Base, CareEvent, Observation, Photo, Plant, User
+from .models import Assessment, Base, CareEvent, Observation, OutboxEvent, Photo, Plant, User
 from .session import get_engine, get_session
 
 __all__ = [
@@ -8,6 +8,7 @@ __all__ = [
     "Base",
     "CareEvent",
     "Observation",
+    "OutboxEvent",
     "Photo",
     "Plant",
     "User",

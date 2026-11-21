@@ -9,6 +9,7 @@ def test_domain_model_contains_expected_tables():
         "users",
         "plants",
         "observations",
+        "outbox_events",
         "photos",
         "care_events",
         "assessments",

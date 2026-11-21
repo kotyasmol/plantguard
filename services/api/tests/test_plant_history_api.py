@@ -7,12 +7,12 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 from plantguard_api.config import Settings, get_settings
-from plantguard_api.database import Base, get_session
+from plantguard_api.database import Base, OutboxEvent, get_session
 from plantguard_api.dependencies import get_photo_link_signer, get_photo_storage
 from plantguard_api.main import app
 from plantguard_api.photo_links import PhotoLinkSigner
 from plantguard_api.photo_storage import LocalPhotoStorage
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, sessionmaker
 
 
@@ -60,7 +60,7 @@ def history_client(tmp_path: Path):
     app.dependency_overrides[get_settings] = lambda: configuration
     app.dependency_overrides[get_photo_storage] = lambda: storage
     app.dependency_overrides[get_photo_link_signer] = lambda: signer
-    yield
+    yield session_factory
     app.dependency_overrides.clear()
     engine.dispose()
 
@@ -109,6 +109,14 @@ def test_plant_history_survives_api_restart(history_client):
         "repeat.jpg",
     }
     assert payload["care_events"][0]["action_type"] == "watered"
+    with history_client() as session:
+        queued = session.scalars(select(OutboxEvent).order_by(OutboxEvent.created_at)).all()
+    assert [event.topic for event in queued] == [
+        "plant.observations.v1",
+        "plant.observations.v1",
+        "plant.care-events.v1",
+    ]
+    assert {event.message_key for event in queued} == {plant_id}
 
 
 def test_history_returns_not_found_for_unknown_plant(history_client):

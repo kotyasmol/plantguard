@@ -10,7 +10,15 @@ from plantguard_api.config import get_settings
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 
-EXPECTED_TABLES = {"users", "plants", "observations", "photos", "care_events", "assessments"}
+EXPECTED_TABLES = {
+    "users",
+    "plants",
+    "observations",
+    "photos",
+    "care_events",
+    "assessments",
+    "outbox_events",
+}
 EXPECTED_CHECKS = {
     "plants": {"ck_plants_species_status"},
     "observations": {
@@ -24,6 +32,10 @@ EXPECTED_CHECKS = {
         "ck_assessments_finding_confidence",
         "ck_assessments_risk_level",
         "ck_assessments_status",
+    },
+    "outbox_events": {
+        "ck_outbox_events_attempts_nonnegative",
+        "ck_outbox_events_status",
     },
 }
 

@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session, selectinload
 from .config import Settings, get_settings
 from .database import CareEvent, Observation, Photo, Plant, User, get_session
 from .dependencies import get_photo_link_signer, get_photo_storage
+from .events import build_care_event, build_observation_event
+from .outbox import enqueue_event
 from .photo_links import PhotoLinkSigner
 from .photo_storage import PhotoStorage
 from .photo_validation import PhotoValidationError, validate_photo_upload
@@ -162,6 +164,20 @@ async def create_observation(
     )
     session.add(observation)
     try:
+        session.flush()
+        enqueue_event(
+            session,
+            topic="plant.observations.v1",
+            event=build_observation_event(
+                observation_id=observation.id,
+                plant_id=observation.plant_id,
+                storage_key=observation.photos[0].storage_key,
+                observed_at=observation.observed_at,
+                description=observation.description,
+                humidity_pct=observation.humidity_pct,
+                temperature_c=observation.temperature_c,
+            ),
+        )
         session.commit()
         session.refresh(observation)
     except Exception:
@@ -186,6 +202,18 @@ def create_care_event(
     values = payload.model_dump(exclude_none=True)
     event = CareEvent(plant_id=plant_id, **values)
     session.add(event)
+    session.flush()
+    enqueue_event(
+        session,
+        topic="plant.care-events.v1",
+        event=build_care_event(
+            care_event_id=event.id,
+            plant_id=event.plant_id,
+            action_type=event.action_type,
+            notes=event.notes,
+            performed_at=event.performed_at,
+        ),
+    )
     session.commit()
     session.refresh(event)
     return event

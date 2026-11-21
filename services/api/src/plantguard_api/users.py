@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .database import Observation, Photo, Plant, User, get_session
+from .database import Observation, OutboxEvent, Photo, Plant, User, get_session
 from .dependencies import get_photo_storage
 from .photo_storage import PhotoNotFoundError, PhotoStorage
 from .schemas import UserCreate, UserRegistrationResult, UserResult
@@ -51,6 +51,9 @@ def delete_profile(
     session: Annotated[Session, Depends(get_session)],
     storage: Annotated[PhotoStorage, Depends(get_photo_storage)],
 ) -> Response:
+    plant_ids = list(
+        session.scalars(select(Plant.id).where(Plant.owner_id == current_user.id)).all()
+    )
     storage_keys = session.scalars(
         select(Photo.storage_key)
         .join(Observation, Photo.observation_id == Observation.id)
@@ -62,6 +65,12 @@ def delete_profile(
             storage.delete(storage_key)
         except PhotoNotFoundError:
             pass
+    if plant_ids:
+        session.execute(
+            delete(OutboxEvent).where(
+                OutboxEvent.message_key.in_([str(plant_id) for plant_id in plant_ids])
+            )
+        )
     session.delete(current_user)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

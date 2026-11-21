@@ -10,6 +10,7 @@ requires-python = ">=3.9"
 dependencies = [
     "alembic==1.16.5",
     "fastapi==0.115.12",
+    "kafka-python-ng==2.2.3",
     "Pillow==11.3.0",
     "pydantic-settings==2.8.1",
     "psycopg[binary]==3.2.13",

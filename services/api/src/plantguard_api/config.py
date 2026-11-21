@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     photo_url_ttl_seconds: int = Field(default=15 * 60, gt=0, le=24 * 60 * 60)
     photo_signing_key: str = Field(default=DEVELOPMENT_PHOTO_SIGNING_KEY, min_length=32)
     web_dist_path: Optional[Path] = None
+    kafka_bootstrap_servers: str = "localhost:9092"
+    outbox_batch_size: int = Field(default=100, gt=0, le=1000)
+    outbox_poll_interval_seconds: float = Field(default=1.0, gt=0, le=60)
 
     model_config = SettingsConfigDict(env_prefix="PLANTGUARD_", env_file=".env")
 
