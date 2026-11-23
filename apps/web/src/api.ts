@@ -240,7 +240,7 @@ export function loadDynamics(
 ): Promise<Dynamics> {
   return request(
     `/api/v1/plants/${plantId}/observations/${currentId}/dynamics/${referenceId}`,
-    {},
+    { method: "POST" },
     token,
   );
 }

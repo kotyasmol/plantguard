@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
-import { Plant, PlantHistory } from "./api";
+import { Plant, PlantHistory, loadDynamics } from "./api";
 
 function json(payload: unknown, ok = true) {
   return Promise.resolve({ ok, json: () => Promise.resolve(payload) } as Response);
@@ -79,6 +79,18 @@ describe("PlantGuard workflow", () => {
 
     expect(await screen.findByText("email: некорректный адрес")).toBeVisible();
     expect(screen.queryByText(/object Object/)).not.toBeInTheDocument();
+  });
+
+  it("requests observation dynamics with the API method expected by the server", async () => {
+    const fetchMock = vi.fn(() => json({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loadDynamics("secret-token", "plant-1", "current-1", "reference-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/plants/plant-1/observations/current-1/dynamics/reference-1",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("creates an observation and shows the grounded assessment", async () => {
