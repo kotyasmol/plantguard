@@ -75,9 +75,8 @@ class KafkaEventProducer:
         self.producer = KafkaProducer(
             bootstrap_servers=bootstrap_servers,
             acks="all",
-            enable_idempotence=True,
             retries=10,
-            max_in_flight_requests_per_connection=5,
+            max_in_flight_requests_per_connection=1,
             key_serializer=lambda value: value.encode(),
             value_serializer=lambda value: json.dumps(
                 value, ensure_ascii=False, separators=(",", ":")

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from uuid import uuid4
 
 from plantguard_api.database import Base, OutboxEvent
-from plantguard_api.outbox import OutboxPublisher
+from plantguard_api.outbox import KafkaEventProducer, OutboxPublisher
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -19,6 +21,25 @@ class RecordingProducer:
             self.failures -= 1
             raise ConnectionError("Kafka is temporarily unavailable")
         self.messages.append((topic, key, payload))
+
+
+def test_kafka_producer_uses_supported_delivery_guarantees(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeKafkaProducer:
+        def __init__(self, **options: object) -> None:
+            captured.update(options)
+
+    monkeypatch.setitem(
+        sys.modules, "kafka", SimpleNamespace(KafkaProducer=FakeKafkaProducer)
+    )
+
+    KafkaEventProducer("kafka:29092")
+
+    assert captured["acks"] == "all"
+    assert captured["retries"] == 10
+    assert captured["max_in_flight_requests_per_connection"] == 1
+    assert "enable_idempotence" not in captured
 
 
 def test_failed_event_is_retried_once_and_not_duplicated_after_success():
