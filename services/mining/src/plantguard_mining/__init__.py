@@ -19,6 +19,7 @@ from .identification import (
     IdentificationOutcome,
     KnnPlantIdentifier,
     extract_features,
+    extract_mobilenet_features,
     fit_artifact,
 )
 from .policy import (
@@ -58,5 +59,6 @@ __all__ = [
     "evaluate",
     "calculate_dynamics",
     "extract_features",
+    "extract_mobilenet_features",
     "fit_artifact",
 ]

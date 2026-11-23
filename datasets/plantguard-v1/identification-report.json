@@ -1,75 +1,135 @@
 {
-  "algorithm": "standardized visual descriptors with distance-weighted k-NN",
-  "model_version": "species-knn-1.0",
+  "algorithm": "MobileNetV2 transfer features with distance-weighted k-NN",
+  "model_version": "species-mobilenet-knn-2.0",
   "neighbors": 7,
-  "recognition_threshold": 0.29,
+  "recognition_threshold": 0.2,
   "release_targets_met": {
     "macro_f1_at_least_0_85": false,
     "unknown_recall_at_least_0_90": false
   },
   "schema_version": 1,
   "test": {
-    "accuracy": 0.445,
-    "macro_f1": 0.4492,
+    "accuracy": 0.6659,
+    "macro_f1": 0.6844,
     "per_class": {
+      "crassula_ovata": {
+        "f1": 0.7045,
+        "precision": 0.8158,
+        "recall": 0.62,
+        "support": 50
+      },
+      "dracaena_fragrans": {
+        "f1": 0.6422,
+        "precision": 0.5932,
+        "recall": 0.7,
+        "support": 50
+      },
       "epipremnum_aureum": {
-        "f1": 0.4045,
-        "precision": 0.4615,
-        "recall": 0.36,
+        "f1": 0.6415,
+        "precision": 0.6071,
+        "recall": 0.68,
+        "support": 50
+      },
+      "ficus_benjamina": {
+        "f1": 0.4301,
+        "precision": 0.4651,
+        "recall": 0.4,
         "support": 50
       },
       "ficus_elastica": {
-        "f1": 0.431,
-        "precision": 0.3788,
-        "recall": 0.5,
+        "f1": 0.551,
+        "precision": 0.5625,
+        "recall": 0.54,
         "support": 50
       },
+      "goeppertia_zebrina": {
+        "f1": 0.9,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+      },
       "monstera_deliciosa": {
-        "f1": 0.4248,
-        "precision": 0.381,
-        "recall": 0.48,
+        "f1": 0.766,
+        "precision": 0.8182,
+        "recall": 0.72,
+        "support": 50
+      },
+      "oxalis_triangularis": {
+        "f1": 0.7895,
+        "precision": 0.7031,
+        "recall": 0.9,
         "support": 50
       },
       "unknown": {
-        "f1": 0.5366,
-        "precision": 0.6875,
-        "recall": 0.44,
+        "f1": 0.7347,
+        "precision": 0.75,
+        "recall": 0.72,
         "support": 50
       }
     }
   },
-  "test_ece": 0.1243,
-  "test_samples": 200,
-  "training_samples": 240,
+  "test_ece": 0.1113,
+  "test_samples": 410,
+  "training_samples": 504,
   "validation": {
-    "accuracy": 0.4821,
-    "macro_f1": 0.4673,
+    "accuracy": 0.6923,
+    "macro_f1": 0.7084,
     "per_class": {
-      "epipremnum_aureum": {
-        "f1": 0.2857,
-        "precision": 0.4286,
-        "recall": 0.2143,
+      "crassula_ovata": {
+        "f1": 0.8148,
+        "precision": 0.8462,
+        "recall": 0.7857,
         "support": 14
       },
-      "ficus_elastica": {
-        "f1": 0.5294,
-        "precision": 0.45,
+      "dracaena_fragrans": {
+        "f1": 0.5926,
+        "precision": 0.6154,
+        "recall": 0.5714,
+        "support": 14
+      },
+      "epipremnum_aureum": {
+        "f1": 0.6923,
+        "precision": 0.75,
         "recall": 0.6429,
         "support": 14
       },
+      "ficus_benjamina": {
+        "f1": 0.5517,
+        "precision": 0.5333,
+        "recall": 0.5714,
+        "support": 14
+      },
+      "ficus_elastica": {
+        "f1": 0.5455,
+        "precision": 0.4737,
+        "recall": 0.6429,
+        "support": 14
+      },
+      "goeppertia_zebrina": {
+        "f1": 0.8889,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 5
+      },
       "monstera_deliciosa": {
-        "f1": 0.4828,
-        "precision": 0.4667,
-        "recall": 0.5,
+        "f1": 0.8,
+        "precision": 0.9091,
+        "recall": 0.7143,
+        "support": 14
+      },
+      "oxalis_triangularis": {
+        "f1": 0.8235,
+        "precision": 0.7,
+        "recall": 1.0,
         "support": 14
       },
       "unknown": {
-        "f1": 0.5714,
-        "precision": 0.5714,
+        "f1": 0.6667,
+        "precision": 0.8,
         "recall": 0.5714,
         "support": 14
       }
     }
   },
-  "validation_samples": 56
+  "validation_samples": 117
 }

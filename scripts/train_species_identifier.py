@@ -15,10 +15,12 @@ from plantguard_mining.identification import KnnPlantIdentifier, fit_artifact, i
 
 MANIFEST_PATH = Path("datasets/plantguard-v1/manifest.jsonl")
 CACHE_PATH = Path(".data/dataset-images")
-MODEL_PATH = Path("services/mining/src/plantguard_mining/models/species-knn-v1.json")
+MODEL_PATH = Path(
+    "services/mining/src/plantguard_mining/models/species-mobilenet-knn-v2.json"
+)
 REPORT_PATH = Path("datasets/plantguard-v1/identification-report.json")
-MODEL_VERSION = "species-knn-1.0"
-USER_AGENT = "PlantGuard species baseline/1.0"
+MODEL_VERSION = "species-mobilenet-knn-2.0"
+USER_AGENT = "PlantGuard species baseline/2.0"
 
 
 def download(record: dict[str, Any]) -> Path:
@@ -163,7 +165,7 @@ def main() -> None:
     report = {
         "schema_version": 1,
         "model_version": MODEL_VERSION,
-        "algorithm": "standardized visual descriptors with distance-weighted k-NN",
+        "algorithm": "MobileNetV2 transfer features with distance-weighted k-NN",
         "neighbors": artifact["neighbors"],
         "recognition_threshold": threshold,
         "training_samples": len(training),

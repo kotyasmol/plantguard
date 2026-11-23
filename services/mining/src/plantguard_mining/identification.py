@@ -1,14 +1,18 @@
-"""Small local k-NN baseline for the three supported plant species."""
+"""Small local k-NN baseline for the supported plant species."""
 
 from __future__ import annotations
 
 import json
 import math
+import os
 from dataclasses import dataclass
+from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import onnxruntime as ort
 from PIL import Image, ImageFilter
 
 from .policy import IdentificationCandidate
@@ -30,6 +34,21 @@ SPECIES_CATALOG = {
     ),
     "ficus_elastica": SpeciesDefinition(
         "ficus_elastica", "Ficus elastica", "Фикус каучуконосный"
+    ),
+    "crassula_ovata": SpeciesDefinition(
+        "crassula_ovata", "Crassula ovata", "Толстянка яйцевидная"
+    ),
+    "goeppertia_zebrina": SpeciesDefinition(
+        "goeppertia_zebrina", "Goeppertia zebrina", "Калатея зебрина"
+    ),
+    "dracaena_fragrans": SpeciesDefinition(
+        "dracaena_fragrans", "Dracaena fragrans", "Драцена душистая"
+    ),
+    "oxalis_triangularis": SpeciesDefinition(
+        "oxalis_triangularis", "Oxalis triangularis", "Кислица треугольная"
+    ),
+    "ficus_benjamina": SpeciesDefinition(
+        "ficus_benjamina", "Ficus benjamina", "Фикус Бенджамина"
     ),
 }
 
@@ -87,8 +106,46 @@ def extract_features(image: Image.Image) -> list[float]:
 
 
 def image_features(path: Path) -> list[float]:
+    model_override = os.environ.get("PLANTGUARD_MOBILENET_MODEL_PATH")
+    model_path = (
+        Path(model_override)
+        if model_override
+        else Path(str(files("plantguard_mining").joinpath("models/mobilenetv2-7.onnx")))
+    )
     with Image.open(path) as image:
-        return extract_features(image)
+        return extract_mobilenet_features(image, model_path)
+
+
+@lru_cache(maxsize=2)
+def _mobilenet_session(model_path: str) -> ort.InferenceSession:
+    return ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+
+
+def extract_mobilenet_features(image: Image.Image, model_path: Path) -> list[float]:
+    """Return ImageNet transfer features from the compact MobileNetV2 model."""
+
+    rgb = image.convert("RGB")
+    width, height = rgb.size
+    scale = 256 / min(width, height)
+    resized = rgb.resize(
+        (round(width * scale), round(height * scale)),
+        Image.Resampling.BILINEAR,
+    )
+    left = (resized.width - 224) // 2
+    top = (resized.height - 224) // 2
+    cropped = resized.crop((left, top, left + 224, top + 224))
+    array = np.asarray(cropped, dtype=np.float32) / 255.0
+    mean = np.asarray([0.485, 0.456, 0.406], dtype=np.float32)
+    standard_deviation = np.asarray([0.229, 0.224, 0.225], dtype=np.float32)
+    normalized = (array - mean) / standard_deviation
+    batch = np.transpose(normalized, (2, 0, 1))[np.newaxis, ...]
+    session = _mobilenet_session(str(model_path))
+    output = session.run(None, {session.get_inputs()[0].name: batch})[0]
+    vector = np.asarray(output, dtype=np.float32).reshape(-1)
+    norm = float(np.linalg.norm(vector))
+    if norm > 0:
+        vector /= norm
+    return vector.astype(float).tolist()
 
 
 def fit_artifact(
@@ -148,7 +205,9 @@ class KnnPlantIdentifier:
 
     @classmethod
     def load_default(cls) -> KnnPlantIdentifier:
-        resource = files("plantguard_mining").joinpath("models/species-knn-v1.json")
+        resource = files("plantguard_mining").joinpath(
+            "models/species-mobilenet-knn-v2.json"
+        )
         return cls(json.loads(resource.read_text(encoding="utf-8")))
 
     def scores_for_features(self, features: list[float]) -> dict[str, float]:
@@ -190,7 +249,7 @@ class KnnPlantIdentifier:
         )
         recognized = top_label in SPECIES_CATALOG and top_score >= self.recognition_threshold
         return IdentificationOutcome(
-            candidates=tuple(supported[:3]),
+            candidates=tuple(supported[:5]),
             recognized=recognized,
             model_version=self.model_version,
         )

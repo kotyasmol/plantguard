@@ -7,10 +7,14 @@ name = "plantguard-mining"
 version = "0.1.0"
 description = "Decision policy and model interfaces for PlantGuard"
 requires-python = ">=3.9"
-dependencies = ["Pillow==11.3.0"]
+dependencies = [
+    "numpy==1.26.4",
+    "onnxruntime==1.19.2",
+    "Pillow==11.3.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-plantguard_mining = ["models/*.json"]
+plantguard_mining = ["models/*.json", "models/*.onnx"]
