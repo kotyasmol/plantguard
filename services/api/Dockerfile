@@ -20,7 +20,14 @@ COPY --from=web-build /workspace/apps/web/dist /workspace/web-dist
 
 RUN python -m pip install --no-cache-dir /workspace/services/mining /workspace/services/api
 
+RUN groupadd --system plantguard \
+    && useradd --system --gid plantguard --home-dir /workspace plantguard \
+    && mkdir -p /var/lib/plantguard/photos \
+    && chown -R plantguard:plantguard /var/lib/plantguard /workspace
+
 ENV PLANTGUARD_WEB_DIST_PATH=/workspace/web-dist
+
+USER plantguard
 
 EXPOSE 8000
 

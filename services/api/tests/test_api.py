@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 from plantguard_api.config import Settings, get_settings
+from plantguard_api.database import get_session
 from plantguard_api.dependencies import get_photo_link_signer, get_photo_storage
 from plantguard_api.main import app
 from plantguard_api.photo_links import PhotoLinkSigner
@@ -34,9 +35,15 @@ def client(tmp_path: Path):
     app.dependency_overrides[get_settings] = lambda: configuration
     app.dependency_overrides[get_photo_storage] = lambda: storage
     app.dependency_overrides[get_photo_link_signer] = lambda: signer
+    app.dependency_overrides[get_session] = lambda: FakeSession()
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+class FakeSession:
+    def execute(self, _statement):
+        return None
 
 
 def test_health_endpoint(client: TestClient):
@@ -44,6 +51,26 @@ def test_health_endpoint(client: TestClient):
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "plantguard-api"}
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["x-request-id"]
+
+
+def test_readiness_checks_database_connection(client: TestClient):
+    response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_metrics_endpoint_is_prometheus_compatible(client: TestClient):
+    client.get("/health")
+
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "plantguard_http_requests_total" in response.text
+    assert 'status="200"' in response.text
 
 
 def test_observation_validation_accepts_supported_image_without_claiming_persistence(

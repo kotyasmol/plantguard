@@ -1,0 +1,179 @@
+name: plantguard
+
+x-app-environment: &app-environment
+  PLANTGUARD_ENVIRONMENT: production
+  PLANTGUARD_CORS_ORIGINS: https://${PLANTGUARD_DOMAIN:?set PLANTGUARD_DOMAIN}
+  PLANTGUARD_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
+  PLANTGUARD_MAX_IMAGE_BYTES: ${PLANTGUARD_MAX_IMAGE_BYTES:-10485760}
+  PLANTGUARD_MAX_IMAGE_PIXELS: ${PLANTGUARD_MAX_IMAGE_PIXELS:-25000000}
+  PLANTGUARD_PHOTO_STORAGE_PATH: /var/lib/plantguard/photos
+  PLANTGUARD_PHOTO_URL_TTL_SECONDS: ${PLANTGUARD_PHOTO_URL_TTL_SECONDS:-900}
+  PLANTGUARD_PHOTO_SIGNING_KEY: ${PLANTGUARD_PHOTO_SIGNING_KEY:?set PLANTGUARD_PHOTO_SIGNING_KEY}
+  PLANTGUARD_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  PLANTGUARD_LLM_BASE_URL: ${PLANTGUARD_LLM_BASE_URL:-}
+  PLANTGUARD_LLM_API_KEY: ${PLANTGUARD_LLM_API_KEY:-}
+  PLANTGUARD_LLM_MODEL: ${PLANTGUARD_LLM_MODEL:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    expose: ["5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [backend]
+
+  kafka:
+    image: confluentinc/cp-kafka:7.8.0
+    hostname: kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    expose: ["29092"]
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:29092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+    networks: [backend]
+
+  ksqldb:
+    image: confluentinc/cp-ksqldb-server:7.8.0
+    hostname: ksqldb
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KSQL_BOOTSTRAP_SERVERS: kafka:29092
+      KSQL_HOST_NAME: ksqldb
+      KSQL_LISTENERS: http://0.0.0.0:8088
+      KSQL_CONFLUENT_SUPPORT_METRICS_ENABLE: "false"
+      KSQL_KSQL_SERVICE_ID: plantguard_
+      KSQL_KSQL_STREAMS_AUTO_OFFSET_RESET: earliest
+    expose: ["8088"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8088/info >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    networks: [backend]
+
+  ksqldb-init:
+    image: confluentinc/cp-ksqldb-cli:7.8.0
+    profiles: ["tools"]
+    depends_on:
+      ksqldb:
+        condition: service_healthy
+    volumes:
+      - ../data-integration/ksqldb:/scripts:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command: ["ksql http://ksqldb:8088 --file /scripts/01-init.sql"]
+    networks: [backend]
+
+  migrate:
+    image: plantguard-app:${PLANTGUARD_IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: services/api/Dockerfile
+    environment: *app-environment
+    command: ["alembic", "-c", "/workspace/services/api/alembic.ini", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+
+  api:
+    image: plantguard-app:${PLANTGUARD_IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: services/api/Dockerfile
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment: *app-environment
+    volumes:
+      - photo-data:/var/lib/plantguard/photos
+    expose: ["8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks: [frontend, backend]
+
+  outbox-worker:
+    image: plantguard-app:${PLANTGUARD_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    command: ["python", "-m", "plantguard_api.outbox_worker"]
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+    networks: [backend]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      PLANTGUARD_DOMAIN: ${PLANTGUARD_DOMAIN:?set PLANTGUARD_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [frontend]
+
+volumes:
+  postgres-data:
+  kafka-data:
+  photo-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  frontend:
+  backend:
+    internal: true

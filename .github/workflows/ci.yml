@@ -26,7 +26,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      PLANTGUARD_ENV: test
+      PLANTGUARD_ENVIRONMENT: test
       PLANTGUARD_DATABASE_URL: postgresql+psycopg://plantguard:plantguard@localhost:5432/plantguard_migrations
     steps:
       - uses: actions/checkout@v4

@@ -17,11 +17,15 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from .config import Settings, get_settings
+from .database import get_session
 from .dependencies import get_photo_link_signer, get_photo_storage
+from .monitoring import ObservabilityMiddleware, request_metrics
 from .photo_links import PhotoLinkSigner
 from .photo_storage import InvalidStorageKey, PhotoNotFoundError, PhotoStorage
 from .photo_validation import PhotoValidationError, validate_photo_upload
@@ -49,6 +53,7 @@ app.add_middleware(
     allow_methods=["DELETE", "GET", "PATCH", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
+app.add_middleware(ObservabilityMiddleware)
 app.include_router(users_router)
 app.include_router(plant_history_router)
 
@@ -56,6 +61,17 @@ app.include_router(plant_history_router)
 @app.get("/health", response_model=HealthResponse, tags=["system"])
 def health() -> HealthResponse:
     return HealthResponse(status=ServiceStatus.OK, service="plantguard-api")
+
+
+@app.get("/health/ready", response_model=HealthResponse, tags=["system"])
+def readiness(session: Annotated[Session, Depends(get_session)]) -> HealthResponse:
+    session.execute(text("SELECT 1"))
+    return HealthResponse(status=ServiceStatus.OK, service="plantguard-api")
+
+
+@app.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
+def metrics() -> str:
+    return request_metrics.render()
 
 
 @app.post(
