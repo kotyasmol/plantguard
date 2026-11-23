@@ -1,6 +1,13 @@
 """Decision-support primitives used by PlantGuard services."""
 
 from .comparison import PhotoComparatorBaseline, PhotoComparisonOutcome
+from .dynamics import (
+    ChangeDirection,
+    DynamicsResult,
+    FindingChange,
+    OverallTrend,
+    calculate_dynamics,
+)
 from .identification import (
     SPECIES_CATALOG,
     IdentificationOutcome,
@@ -22,7 +29,10 @@ from .visual import VisualAnalysisOutcome, VisualConditionBaseline
 __all__ = [
     "Assessment",
     "AssessmentSignals",
+    "ChangeDirection",
+    "DynamicsResult",
     "Evidence",
+    "FindingChange",
     "IdentificationOutcome",
     "IdentificationCandidate",
     "KnnPlantIdentifier",
@@ -32,9 +42,11 @@ __all__ = [
     "RussianSymptomExtractor",
     "SPECIES_CATALOG",
     "TextAnalysisOutcome",
+    "OverallTrend",
     "VisualAnalysisOutcome",
     "VisualConditionBaseline",
     "evaluate",
+    "calculate_dynamics",
     "extract_features",
     "fit_artifact",
 ]

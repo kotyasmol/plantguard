@@ -174,6 +174,23 @@ class PhotoComparisonResult(BaseModel):
     model_version: str
 
 
+class FindingChangeResult(BaseModel):
+    code: str
+    previous_confidence: float = Field(ge=0, le=1)
+    current_confidence: float = Field(ge=0, le=1)
+    direction: str
+
+
+class ObservationDynamicsResult(BaseModel):
+    reference_observation_id: UUID
+    current_observation_id: UUID
+    comparable: bool
+    comparison_reasons: list[str]
+    trend: str
+    changes: list[FindingChangeResult]
+    care_events: list[CareEventResult]
+
+
 class UserCreate(BaseModel):
     email: str = Field(
         min_length=5,

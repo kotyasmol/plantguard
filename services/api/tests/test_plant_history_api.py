@@ -348,3 +348,75 @@ def test_photo_comparison_rejects_incompatible_pair(history_client):
     assert response.status_code == 200
     assert response.json()["comparable"] is False
     assert response.json()["reasons"] == ["framing_mismatch"]
+
+
+def test_dynamics_returns_changes_and_intervening_care_events(history_client):
+    class ComparablePhotos:
+        def compare(self, _first, _second):
+            return PhotoComparisonOutcome(
+                comparable=True,
+                reasons=(),
+                metrics={"structure_similarity": 0.91},
+            )
+
+    class SequentialAnalyzer:
+        def __init__(self):
+            self.calls = 0
+
+        def analyze(self, _image):
+            self.calls += 1
+            findings = (
+                (Evidence("leaf-yellowing", 0.88, "image:test"),)
+                if self.calls == 1
+                else (Evidence("leaf-yellowing", 0.54, "image:test"),)
+            )
+            return VisualAnalysisOutcome(findings=findings, analyzable=True)
+
+    app.dependency_overrides[get_photo_comparator] = lambda: ComparablePhotos()
+    app.dependency_overrides[get_visual_condition_analyzer] = lambda: SequentialAnalyzer()
+    with TestClient(app) as client:
+        headers = register(client, "dynamics@example.com")
+        plant_id = client.post(
+            "/api/v1/plants", json={"nickname": "Динамика"}, headers=headers
+        ).json()["id"]
+        previous_id = client.post(
+            f"/api/v1/plants/{plant_id}/observations",
+            files={"photo": ("before.jpg", image_bytes(), "image/jpeg")},
+            data={"observed_at": "2026-11-20T10:00:00+05:00"},
+            headers=headers,
+        ).json()["id"]
+        client.post(
+            f"/api/v1/plants/{plant_id}/care-events",
+            json={
+                "action_type": "moved",
+                "notes": "Переставлено ближе к окну",
+                "performed_at": "2026-11-21T10:00:00+05:00",
+            },
+            headers=headers,
+        )
+        current_id = client.post(
+            f"/api/v1/plants/{plant_id}/observations",
+            files={"photo": ("after.jpg", image_bytes(), "image/jpeg")},
+            data={"observed_at": "2026-11-22T10:00:00+05:00"},
+            headers=headers,
+        ).json()["id"]
+
+        response = client.post(
+            f"/api/v1/plants/{plant_id}/observations/{current_id}"
+            f"/dynamics/{previous_id}",
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["comparable"] is True
+    assert payload["trend"] == "improving"
+    assert payload["changes"] == [
+        {
+            "code": "leaf-yellowing",
+            "previous_confidence": 0.88,
+            "current_confidence": 0.54,
+            "direction": "resolved",
+        }
+    ]
+    assert [event["action_type"] for event in payload["care_events"]] == ["moved"]

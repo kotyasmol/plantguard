@@ -7,7 +7,7 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from plantguard_mining import SPECIES_CATALOG
+from plantguard_mining import SPECIES_CATALOG, OverallTrend, calculate_dynamics
 from plantguard_mining.ports import (
     ImageReference,
     PhotoComparator,
@@ -37,7 +37,9 @@ from .photo_validation import PhotoValidationError, validate_photo_upload
 from .schemas import (
     CareEventCreate,
     CareEventResult,
+    FindingChangeResult,
     IdentificationResult,
+    ObservationDynamicsResult,
     ObservationResult,
     PhotoComparisonResult,
     PhotoResult,
@@ -400,6 +402,89 @@ def compare_observation_photos(
         reasons=list(outcome.reasons),
         metrics=outcome.metrics,
         model_version=outcome.model_version,
+    )
+
+
+@router.post(
+    "/{plant_id}/observations/{current_observation_id}/dynamics/{reference_observation_id}",
+    response_model=ObservationDynamicsResult,
+)
+def calculate_observation_dynamics(
+    plant_id: UUID,
+    current_observation_id: UUID,
+    reference_observation_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    storage: Annotated[PhotoStorage, Depends(get_photo_storage)],
+    comparator: Annotated[PhotoComparator, Depends(get_photo_comparator)],
+    analyzer: Annotated[
+        VisualConditionAnalyzer, Depends(get_visual_condition_analyzer)
+    ],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> ObservationDynamicsResult:
+    current = require_observation(
+        session, plant_id, current_observation_id, current_user.id
+    )
+    reference = require_observation(
+        session, plant_id, reference_observation_id, current_user.id
+    )
+    if current.observed_at <= reference.observed_at:
+        raise HTTPException(
+            status_code=422,
+            detail="Текущее наблюдение должно быть сделано позже предыдущего",
+        )
+    if not current.photos or not reference.photos:
+        raise HTTPException(status_code=409, detail="Для сравнения нужны две фотографии")
+
+    current_photo = storage.locate(current.photos[0].storage_key)
+    reference_photo = storage.locate(reference.photos[0].storage_key)
+    current_reference = ImageReference(
+        uri=str(current_photo.path), media_type=current_photo.media_type
+    )
+    previous_reference = ImageReference(
+        uri=str(reference_photo.path), media_type=reference_photo.media_type
+    )
+    comparison = comparator.compare(previous_reference, current_reference)
+    care_events = session.scalars(
+        select(CareEvent)
+        .where(
+            CareEvent.plant_id == plant_id,
+            CareEvent.performed_at > reference.observed_at,
+            CareEvent.performed_at <= current.observed_at,
+        )
+        .order_by(CareEvent.performed_at)
+    ).all()
+    if comparison.comparable:
+        previous_analysis = analyzer.analyze(previous_reference)
+        current_analysis = analyzer.analyze(current_reference)
+        if previous_analysis.analyzable and current_analysis.analyzable:
+            dynamics = calculate_dynamics(
+                previous_analysis.findings, current_analysis.findings
+            )
+        else:
+            dynamics = calculate_dynamics((), ())
+    else:
+        dynamics = calculate_dynamics((), ())
+
+    return ObservationDynamicsResult(
+        reference_observation_id=reference.id,
+        current_observation_id=current.id,
+        comparable=comparison.comparable,
+        comparison_reasons=list(comparison.reasons),
+        trend=(
+            dynamics.trend.value
+            if comparison.comparable
+            else OverallTrend.UNDETERMINED.value
+        ),
+        changes=[
+            FindingChangeResult(
+                code=change.code,
+                previous_confidence=change.previous_confidence,
+                current_confidence=change.current_confidence,
+                direction=change.direction.value,
+            )
+            for change in dynamics.changes
+        ],
+        care_events=[CareEventResult.model_validate(event) for event in care_events],
     )
 
 
