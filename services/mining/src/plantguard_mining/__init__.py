@@ -8,6 +8,12 @@ from .dynamics import (
     OverallTrend,
     calculate_dynamics,
 )
+from .explanations import (
+    ExplanationContext,
+    ExplanationPlan,
+    GroundedExplanation,
+    GroundedExplanationGenerator,
+)
 from .identification import (
     SPECIES_CATALOG,
     IdentificationOutcome,
@@ -32,7 +38,11 @@ __all__ = [
     "ChangeDirection",
     "DynamicsResult",
     "Evidence",
+    "ExplanationContext",
+    "ExplanationPlan",
     "FindingChange",
+    "GroundedExplanation",
+    "GroundedExplanationGenerator",
     "IdentificationOutcome",
     "IdentificationCandidate",
     "KnnPlantIdentifier",

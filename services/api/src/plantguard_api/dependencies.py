@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from plantguard_mining import (
+    GroundedExplanationGenerator,
     KnnPlantIdentifier,
     PhotoComparatorBaseline,
     RussianSymptomExtractor,
@@ -8,6 +9,7 @@ from plantguard_mining import (
 )
 
 from .config import get_settings
+from .llm import CompatibleExplanationPlanner
 from .photo_links import PhotoLinkSigner
 from .photo_storage import LocalPhotoStorage, PhotoStorage
 
@@ -38,3 +40,17 @@ def get_symptom_extractor() -> RussianSymptomExtractor:
 @lru_cache
 def get_photo_comparator() -> PhotoComparatorBaseline:
     return PhotoComparatorBaseline()
+
+
+@lru_cache
+def get_explanation_generator() -> GroundedExplanationGenerator:
+    settings = get_settings()
+    if settings.llm_base_url and settings.llm_api_key and settings.llm_model:
+        planner = CompatibleExplanationPlanner(
+            base_url=settings.llm_base_url,
+            api_key=settings.llm_api_key.get_secret_value(),
+            model=settings.llm_model,
+            timeout=settings.llm_timeout_seconds,
+        )
+        return GroundedExplanationGenerator(planner)
+    return GroundedExplanationGenerator()

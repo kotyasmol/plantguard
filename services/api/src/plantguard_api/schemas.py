@@ -208,6 +208,8 @@ class DecisionAssessmentResult(BaseModel):
     missing_inputs: list[str]
     evidence: list[DecisionEvidenceResult]
     recommended_actions: list[str]
+    explanation: str
+    explanation_source: str
     policy_version: str
     model_version: str
 

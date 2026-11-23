@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from plantguard_mining import (
     SPECIES_CATALOG,
     AssessmentSignals,
+    ExplanationContext,
+    GroundedExplanationGenerator,
     OverallTrend,
     RiskLevel,
     calculate_dynamics,
@@ -29,6 +31,7 @@ from .config import Settings, get_settings
 from .database import Assessment as AssessmentRecord
 from .database import CareEvent, Observation, Photo, Plant, User, get_session
 from .dependencies import (
+    get_explanation_generator,
     get_photo_comparator,
     get_photo_link_signer,
     get_photo_storage,
@@ -519,6 +522,9 @@ def assess_observation(
     ],
     symptom_extractor: Annotated[SymptomExtractor, Depends(get_symptom_extractor)],
     comparator: Annotated[PhotoComparator, Depends(get_photo_comparator)],
+    explanation_generator: Annotated[
+        GroundedExplanationGenerator, Depends(get_explanation_generator)
+    ],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> DecisionAssessmentResult:
     plant = require_plant(session, plant_id, current_user.id)
@@ -599,6 +605,15 @@ def assess_observation(
         if decision.requires_more_data or decision.requires_species_confirmation
         else "succeeded"
     )
+    explanation = explanation_generator.explain(
+        ExplanationContext(
+            risk_level=risk_level,
+            evidence_codes=tuple(item.code for item in decision.evidence),
+            recommended_actions=decision.recommended_actions,
+            missing_inputs=decision.missing_inputs,
+            conflicting_evidence=decision.conflicting_evidence,
+        )
+    )
     top_candidate = identification.candidates[0] if identification.candidates else None
     top_finding = max(decision.evidence, key=lambda item: item.confidence, default=None)
     model_version = "+".join(
@@ -625,6 +640,7 @@ def assess_observation(
             Decimal(str(top_finding.confidence)) if top_finding is not None else None
         ),
         risk_level=risk_level,
+        explanation=explanation.text,
         model_version=model_version,
     )
     session.add(record)
@@ -644,7 +660,7 @@ def assess_observation(
                 if record.finding_confidence is not None
                 else None
             ),
-            explanation=None,
+            explanation=explanation.text,
             model_version=model_version,
         ),
     )
@@ -668,6 +684,8 @@ def assess_observation(
             for item in decision.evidence
         ],
         recommended_actions=list(decision.recommended_actions),
+        explanation=explanation.text,
+        explanation_source=explanation.source,
         policy_version=decision.policy_version,
         model_version=model_version,
     )

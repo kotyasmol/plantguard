@@ -496,6 +496,8 @@ def test_decision_support_combines_signals_and_persists_assessment(history_clien
         "image:test",
         "text:test",
     }
+    assert "пожелтение" in payload["explanation"]
+    assert payload["explanation_source"] == "deterministic"
     with history_client() as session:
         assessment = session.scalar(select(Assessment))
         events = session.scalars(
@@ -505,4 +507,5 @@ def test_decision_support_combines_signals_and_persists_assessment(history_clien
         ).all()
     assert assessment is not None
     assert assessment.risk_level == "medium"
+    assert "не диагноз" in assessment.explanation
     assert len(events) == 1
