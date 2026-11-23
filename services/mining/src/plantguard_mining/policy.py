@@ -19,6 +19,8 @@ class IdentificationCandidate:
     species_code: str
     display_name: str
     confidence: float
+    scientific_name: str | None = None
+    common_name: str | None = None
 
 
 @dataclass(frozen=True)

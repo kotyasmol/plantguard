@@ -12,6 +12,7 @@ from plantguard_mining import (
     AssessmentSignals,
     ExplanationContext,
     GroundedExplanationGenerator,
+    IdentificationCandidate,
     OverallTrend,
     RiskLevel,
     calculate_dynamics,
@@ -75,6 +76,17 @@ from .schemas import (
 from .security import get_current_user
 
 router = APIRouter(prefix="/api/v1/plants", tags=["plants"])
+
+
+def candidate_names(candidate: IdentificationCandidate) -> tuple[str, str]:
+    local_species = SPECIES_CATALOG.get(candidate.species_code)
+    scientific_name = candidate.scientific_name or (
+        local_species.scientific_name if local_species else candidate.display_name
+    )
+    common_name = candidate.common_name or (
+        local_species.common_name if local_species else candidate.display_name
+    )
+    return scientific_name, common_name
 
 
 def require_plant(session: Session, plant_id: UUID, owner_id: UUID) -> Plant:
@@ -303,15 +315,17 @@ def identify_observation(
     outcome = identifier.identify(
         ImageReference(uri=str(photo.path), media_type=photo.media_type)
     )
-    candidates = [
-        SpeciesCandidateResult(
-            species_code=candidate.species_code,
-            scientific_name=SPECIES_CATALOG[candidate.species_code].scientific_name,
-            common_name=SPECIES_CATALOG[candidate.species_code].common_name,
-            confidence=candidate.confidence,
+    candidates = []
+    for candidate in outcome.candidates:
+        scientific_name, common_name = candidate_names(candidate)
+        candidates.append(
+            SpeciesCandidateResult(
+                species_code=candidate.species_code,
+                scientific_name=scientific_name,
+                common_name=common_name,
+                confidence=candidate.confidence,
+            )
         )
-        for candidate in outcome.candidates
-    ]
     if outcome.recognized:
         top = candidates[0]
         plant.species_scientific_name = top.scientific_name
@@ -639,14 +653,13 @@ def assess_observation(
             f"policy-{decision.policy_version}",
         )
     )
+    identified_scientific_name = (
+        candidate_names(top_candidate)[0] if top_candidate is not None else None
+    )
     record = AssessmentRecord(
         observation_id=observation.id,
         status=assessment_status,
-        identified_scientific_name=(
-            SPECIES_CATALOG[top_candidate.species_code].scientific_name
-            if top_candidate is not None
-            else None
-        ),
+        identified_scientific_name=identified_scientific_name,
         identification_confidence=(
             Decimal(str(top_candidate.confidence)) if top_candidate is not None else None
         ),

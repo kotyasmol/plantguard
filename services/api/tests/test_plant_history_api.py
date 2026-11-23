@@ -263,6 +263,49 @@ def test_identification_suggests_species_and_manual_correction_confirms_it(histo
     assert len(identification_events) == 1
 
 
+def test_identification_accepts_species_outside_local_catalog(history_client):
+    class BroadIdentifier:
+        def identify(self, _image):
+            return IdentificationOutcome(
+                candidates=(
+                    IdentificationCandidate(
+                        "crassula_ovata",
+                        "Толстянка яйцевидная",
+                        0.94,
+                        scientific_name="Crassula ovata",
+                        common_name="Толстянка яйцевидная",
+                    ),
+                ),
+                recognized=True,
+                model_version="broad-catalog-test",
+            )
+
+    app.dependency_overrides[get_plant_identifier] = lambda: BroadIdentifier()
+    with TestClient(app) as client:
+        headers = register(client, "broad-catalog@example.com")
+        plant_id = client.post(
+            "/api/v1/plants", json={"nickname": "Толстянка"}, headers=headers
+        ).json()["id"]
+        observation = client.post(
+            f"/api/v1/plants/{plant_id}/observations",
+            files={"photo": ("plant.jpg", image_bytes(), "image/jpeg")},
+            headers=headers,
+        ).json()
+
+        response = client.post(
+            f"/api/v1/plants/{plant_id}/observations/{observation['id']}/identify",
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["candidates"][0] == {
+        "species_code": "crassula_ovata",
+        "scientific_name": "Crassula ovata",
+        "common_name": "Толстянка яйцевидная",
+        "confidence": 0.94,
+    }
+
+
 def test_visual_analysis_returns_structured_findings(history_client):
     class FakeAnalyzer:
         def analyze(self, _image):

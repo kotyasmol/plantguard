@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     llm_api_key: Optional[SecretStr] = None
     llm_model: Optional[str] = None
     llm_timeout_seconds: float = Field(default=8.0, gt=0, le=60)
+    plantnet_api_key: Optional[SecretStr] = None
+    plantnet_project: str = Field(default="all", min_length=1, max_length=80)
+    plantnet_language: str = Field(default="ru", min_length=2, max_length=12)
+    plantnet_timeout_seconds: float = Field(default=12.0, gt=0, le=60)
+    plantnet_recognition_threshold: float = Field(default=0.55, ge=0, le=1)
+    plantnet_max_results: int = Field(default=5, ge=1, le=5)
 
     model_config = SettingsConfigDict(env_prefix="PLANTGUARD_", env_file=".env")
 

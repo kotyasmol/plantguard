@@ -147,7 +147,7 @@ class SpeciesCandidateResult(BaseModel):
 
 class IdentificationResult(BaseModel):
     observation_id: UUID
-    candidates: list[SpeciesCandidateResult] = Field(min_length=1, max_length=3)
+    candidates: list[SpeciesCandidateResult] = Field(min_length=1, max_length=5)
     recognized: bool
     needs_review: bool
     model_version: str

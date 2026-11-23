@@ -7,11 +7,13 @@ from plantguard_mining import (
     RussianSymptomExtractor,
     VisualConditionBaseline,
 )
+from plantguard_mining.ports import PlantIdentifier
 
 from .config import get_settings
 from .llm import CompatibleExplanationPlanner
 from .photo_links import PhotoLinkSigner
 from .photo_storage import LocalPhotoStorage, PhotoStorage
+from .plantnet import HybridPlantIdentifier, PlantNetIdentifier
 
 
 def get_photo_storage() -> PhotoStorage:
@@ -23,8 +25,24 @@ def get_photo_link_signer() -> PhotoLinkSigner:
 
 
 @lru_cache
-def get_plant_identifier() -> KnnPlantIdentifier:
-    return KnnPlantIdentifier.load_default()
+def get_plant_identifier() -> PlantIdentifier:
+    settings = get_settings()
+    local = KnnPlantIdentifier.load_default()
+    if settings.plantnet_api_key:
+        api_key = settings.plantnet_api_key.get_secret_value().strip()
+        if api_key:
+            return HybridPlantIdentifier(
+                PlantNetIdentifier(
+                    api_key=api_key,
+                    project=settings.plantnet_project,
+                    language=settings.plantnet_language,
+                    timeout=settings.plantnet_timeout_seconds,
+                    recognition_threshold=settings.plantnet_recognition_threshold,
+                    max_results=settings.plantnet_max_results,
+                ),
+                local,
+            )
+    return local
 
 
 @lru_cache
