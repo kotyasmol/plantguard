@@ -11,9 +11,14 @@ from typing import Any
 from urllib.parse import urlparse
 
 SUPPORTED_LABELS = {
+    "crassula_ovata",
+    "dracaena_fragrans",
     "monstera_deliciosa",
     "epipremnum_aureum",
+    "ficus_benjamina",
     "ficus_elastica",
+    "goeppertia_zebrina",
+    "oxalis_triangularis",
 }
 ALL_LABELS = SUPPORTED_LABELS | {"unknown"}
 ALLOWED_LICENSES = {
@@ -22,6 +27,9 @@ ALLOWED_LICENSES = {
     "cc-by-sa": "https://creativecommons.org/licenses/by-sa/4.0/",
 }
 REQUIRED_SPLIT_COUNTS = {"train": 60, "validation": 14, "test": 50}
+LOW_RESOURCE_SPLIT_COUNTS = {
+    "goeppertia_zebrina": {"train": 24, "validation": 5, "test": 10},
+}
 REQUIRED_FIELDS = {
     "sample_id",
     "subject_id",
@@ -117,10 +125,18 @@ def audit_manifest(records: list[dict[str, Any]]) -> dict[str, Any]:
         errors.append(f"subjects present in multiple splits: {', '.join(leaked_subjects[:10])}")
 
     for label in sorted(ALL_LABELS):
-        for split, minimum in REQUIRED_SPLIT_COUNTS.items():
+        required_counts = LOW_RESOURCE_SPLIT_COUNTS.get(label, REQUIRED_SPLIT_COUNTS)
+        for split, minimum in required_counts.items():
             actual = counts[(label, split)]
             if actual < minimum:
                 errors.append(f"{label}/{split}: expected at least {minimum}, found {actual}")
+
+    for label, split_counts in LOW_RESOURCE_SPLIT_COUNTS.items():
+        actual = sum(counts[(label, split)] for split in split_counts)
+        warnings.append(
+            f"{label} is a low-resource class with {actual} samples; "
+            "its metrics must be interpreted separately"
+        )
 
     if any(record.get("source") != "iNaturalist" for record in records):
         warnings.append("manifest contains a source other than iNaturalist")

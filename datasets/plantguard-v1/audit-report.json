@@ -1,6 +1,21 @@
 {
   "counts": {
+    "crassula_ovata": {
+      "test": 50,
+      "train": 60,
+      "validation": 14
+    },
+    "dracaena_fragrans": {
+      "test": 50,
+      "train": 60,
+      "validation": 14
+    },
     "epipremnum_aureum": {
+      "test": 50,
+      "train": 60,
+      "validation": 14
+    },
+    "ficus_benjamina": {
       "test": 50,
       "train": 60,
       "validation": 14
@@ -10,7 +25,17 @@
       "train": 60,
       "validation": 14
     },
+    "goeppertia_zebrina": {
+      "test": 10,
+      "train": 24,
+      "validation": 5
+    },
     "monstera_deliciosa": {
+      "test": 50,
+      "train": 60,
+      "validation": 14
+    },
+    "oxalis_triangularis": {
       "test": 50,
       "train": 60,
       "validation": 14
@@ -24,18 +49,25 @@
   "cross_split_subjects": 0,
   "errors": [],
   "licenses": {
-    "cc-by": 340,
-    "cc-by-sa": 45,
-    "cc0": 111
+    "cc-by": 678,
+    "cc-by-sa": 159,
+    "cc0": 194
   },
   "ready": true,
-  "sample_count": 496,
+  "sample_count": 1031,
   "schema_version": 1,
-  "subject_count": 496,
+  "subject_count": 1031,
   "supported_labels": [
+    "crassula_ovata",
+    "dracaena_fragrans",
     "epipremnum_aureum",
+    "ficus_benjamina",
     "ficus_elastica",
-    "monstera_deliciosa"
+    "goeppertia_zebrina",
+    "monstera_deliciosa",
+    "oxalis_triangularis"
   ],
-  "warnings": []
+  "warnings": [
+    "goeppertia_zebrina is a low-resource class with 39 samples; its metrics must be interpreted separately"
+  ]
 }

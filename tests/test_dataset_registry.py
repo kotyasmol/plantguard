@@ -1,7 +1,9 @@
 import json
 
 from scripts.dataset_registry import (
+    ALL_LABELS,
     ALLOWED_LICENSES,
+    LOW_RESOURCE_SPLIT_COUNTS,
     REQUIRED_SPLIT_COUNTS,
     audit_manifest,
 )
@@ -29,13 +31,9 @@ def record(label: str, split: str, index: int) -> dict[str, object]:
 
 def complete_manifest() -> list[dict[str, object]]:
     records = []
-    for label in (
-        "monstera_deliciosa",
-        "epipremnum_aureum",
-        "ficus_elastica",
-        "unknown",
-    ):
-        for split, count in REQUIRED_SPLIT_COUNTS.items():
+    for label in sorted(ALL_LABELS):
+        split_counts = LOW_RESOURCE_SPLIT_COUNTS.get(label, REQUIRED_SPLIT_COUNTS)
+        for split, count in split_counts.items():
             records.extend(record(label, split, index) for index in range(count))
     return records
 
@@ -44,7 +42,7 @@ def test_complete_licensed_manifest_is_ready():
     report = audit_manifest(complete_manifest())
 
     assert report["ready"] is True
-    assert report["sample_count"] == 496
+    assert report["sample_count"] == 1_031
     assert report["cross_split_subjects"] == 0
 
 
