@@ -191,6 +191,27 @@ class ObservationDynamicsResult(BaseModel):
     care_events: list[CareEventResult]
 
 
+class DecisionEvidenceResult(BaseModel):
+    code: str
+    confidence: float = Field(ge=0, le=1)
+    source: str
+
+
+class DecisionAssessmentResult(BaseModel):
+    assessment_id: UUID
+    observation_id: UUID
+    status: str
+    risk_level: str
+    requires_species_confirmation: bool
+    requires_more_data: bool
+    conflicting_evidence: bool
+    missing_inputs: list[str]
+    evidence: list[DecisionEvidenceResult]
+    recommended_actions: list[str]
+    policy_version: str
+    model_version: str
+
+
 class UserCreate(BaseModel):
     email: str = Field(
         min_length=5,

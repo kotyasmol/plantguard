@@ -63,3 +63,53 @@ def test_invalid_confidence_is_rejected():
                 text_findings=[],
             )
         )
+
+
+def test_complete_healthy_signals_produce_low_risk():
+    assessment = evaluate(
+        AssessmentSignals(
+            identification=[],
+            visual_findings=[],
+            text_findings=[],
+            species_confirmed=True,
+            image_analyzable=True,
+            text_analyzable=True,
+        )
+    )
+
+    assert assessment.risk is RiskLevel.LOW
+    assert assessment.requires_more_data is False
+
+
+def test_disjoint_image_and_text_findings_request_clarification():
+    assessment = evaluate(
+        AssessmentSignals(
+            identification=[],
+            visual_findings=[Evidence("leaf-yellowing", 0.84, "image")],
+            text_findings=[Evidence("leaf-dark-spots", 0.90, "text")],
+            species_confirmed=True,
+            image_analyzable=True,
+            text_analyzable=True,
+        )
+    )
+
+    assert assessment.conflicting_evidence is True
+    assert assessment.requires_more_data is True
+    assert any("Уточнить описание" in action for action in assessment.recommended_actions)
+
+
+def test_worsening_dynamics_raises_risk_without_claiming_a_diagnosis():
+    assessment = evaluate(
+        AssessmentSignals(
+            identification=[],
+            visual_findings=[Evidence("leaf-yellowing", 0.84, "image")],
+            text_findings=[],
+            species_confirmed=True,
+            image_analyzable=True,
+            text_analyzable=True,
+            dynamics_trend="worsening",
+        )
+    )
+
+    assert assessment.risk is RiskLevel.MODERATE
+    assert all("болезн" not in action.lower() for action in assessment.recommended_actions)

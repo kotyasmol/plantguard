@@ -161,3 +161,32 @@ def build_identification_event(
         needs_review=needs_review,
         model_version=model_version,
     )
+
+
+def build_assessment_event(
+    *,
+    assessment_id: UUID,
+    observation_id: UUID,
+    plant_id: UUID,
+    status: str,
+    risk_level: str,
+    finding_code: Optional[str],
+    finding_confidence: Optional[float],
+    explanation: Optional[str],
+    model_version: str,
+) -> PlantAssessmentResultEvent:
+    return PlantAssessmentResultEvent(
+        event_id=str(uuid4()),
+        event_type="plant.assessment.completed",
+        schema_version=1,
+        occurred_at=unix_milliseconds(datetime.now(timezone.utc)),
+        assessment_id=assessment_id,
+        observation_id=observation_id,
+        plant_id=plant_id,
+        status=status,
+        risk_level=risk_level,
+        finding_code=finding_code,
+        finding_confidence=finding_confidence,
+        explanation=explanation,
+        model_version=model_version,
+    )

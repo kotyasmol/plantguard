@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 from plantguard_api.config import Settings, get_settings
-from plantguard_api.database import Base, OutboxEvent, get_session
+from plantguard_api.database import Assessment, Base, OutboxEvent, get_session
 from plantguard_api.dependencies import (
     get_photo_comparator,
     get_photo_link_signer,
@@ -420,3 +420,89 @@ def test_dynamics_returns_changes_and_intervening_care_events(history_client):
         }
     ]
     assert [event["action_type"] for event in payload["care_events"]] == ["moved"]
+
+
+def test_decision_support_combines_signals_and_persists_assessment(history_client):
+    class DecisionIdentifier:
+        def identify(self, _image):
+            return IdentificationOutcome(
+                candidates=(
+                    IdentificationCandidate(
+                        "monstera_deliciosa", "Монстера деликатесная", 0.91
+                    ),
+                    IdentificationCandidate(
+                        "epipremnum_aureum", "Эпипремнум золотистый", 0.06
+                    ),
+                    IdentificationCandidate(
+                        "ficus_elastica", "Фикус каучуконосный", 0.03
+                    ),
+                ),
+                recognized=True,
+                model_version="decision-id-test",
+            )
+
+    class DecisionVisualAnalyzer:
+        def analyze(self, _image):
+            return VisualAnalysisOutcome(
+                findings=(Evidence("leaf-yellowing", 0.84, "image:test"),),
+                analyzable=True,
+                model_version="decision-visual-test",
+            )
+
+    class DecisionTextExtractor:
+        def extract(self, _description):
+            return TextAnalysisOutcome(
+                findings=(Evidence("leaf-yellowing", 0.92, "text:test"),),
+                analyzable=True,
+                model_version="decision-text-test",
+            )
+
+    app.dependency_overrides[get_plant_identifier] = lambda: DecisionIdentifier()
+    app.dependency_overrides[get_visual_condition_analyzer] = (
+        lambda: DecisionVisualAnalyzer()
+    )
+    app.dependency_overrides[get_symptom_extractor] = lambda: DecisionTextExtractor()
+    with TestClient(app) as client:
+        headers = register(client, "decision@example.com")
+        plant_id = client.post(
+            "/api/v1/plants", json={"nickname": "СППР"}, headers=headers
+        ).json()["id"]
+        client.patch(
+            f"/api/v1/plants/{plant_id}/species",
+            json={
+                "scientific_name": "Monstera deliciosa",
+                "common_name": "Монстера деликатесная",
+            },
+            headers=headers,
+        )
+        observation_id = client.post(
+            f"/api/v1/plants/{plant_id}/observations",
+            files={"photo": ("assessment.jpg", image_bytes(), "image/jpeg")},
+            data={"description": "Лист начал желтеть", "humidity_pct": "55"},
+            headers=headers,
+        ).json()["id"]
+
+        response = client.post(
+            f"/api/v1/plants/{plant_id}/observations/{observation_id}/assess",
+            headers=headers,
+        )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["status"] == "succeeded"
+    assert payload["risk_level"] == "medium"
+    assert payload["requires_more_data"] is False
+    assert {item["source"] for item in payload["evidence"]} == {
+        "image:test",
+        "text:test",
+    }
+    with history_client() as session:
+        assessment = session.scalar(select(Assessment))
+        events = session.scalars(
+            select(OutboxEvent).where(
+                OutboxEvent.topic == "plant.assessment-results.v1"
+            )
+        ).all()
+    assert assessment is not None
+    assert assessment.risk_level == "medium"
+    assert len(events) == 1

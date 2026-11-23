@@ -7,7 +7,14 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from plantguard_mining import SPECIES_CATALOG, OverallTrend, calculate_dynamics
+from plantguard_mining import (
+    SPECIES_CATALOG,
+    AssessmentSignals,
+    OverallTrend,
+    RiskLevel,
+    calculate_dynamics,
+    evaluate,
+)
 from plantguard_mining.ports import (
     ImageReference,
     PhotoComparator,
@@ -19,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .config import Settings, get_settings
+from .database import Assessment as AssessmentRecord
 from .database import CareEvent, Observation, Photo, Plant, User, get_session
 from .dependencies import (
     get_photo_comparator,
@@ -29,7 +37,12 @@ from .dependencies import (
     get_visual_condition_analyzer,
 )
 from .events import IdentificationCandidate as EventCandidate
-from .events import build_care_event, build_identification_event, build_observation_event
+from .events import (
+    build_assessment_event,
+    build_care_event,
+    build_identification_event,
+    build_observation_event,
+)
 from .outbox import enqueue_event
 from .photo_links import PhotoLinkSigner
 from .photo_storage import PhotoStorage
@@ -37,6 +50,8 @@ from .photo_validation import PhotoValidationError, validate_photo_upload
 from .schemas import (
     CareEventCreate,
     CareEventResult,
+    DecisionAssessmentResult,
+    DecisionEvidenceResult,
     FindingChangeResult,
     IdentificationResult,
     ObservationDynamicsResult,
@@ -485,6 +500,176 @@ def calculate_observation_dynamics(
             for change in dynamics.changes
         ],
         care_events=[CareEventResult.model_validate(event) for event in care_events],
+    )
+
+
+@router.post(
+    "/{plant_id}/observations/{observation_id}/assess",
+    response_model=DecisionAssessmentResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def assess_observation(
+    plant_id: UUID,
+    observation_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    storage: Annotated[PhotoStorage, Depends(get_photo_storage)],
+    identifier: Annotated[PlantIdentifier, Depends(get_plant_identifier)],
+    visual_analyzer: Annotated[
+        VisualConditionAnalyzer, Depends(get_visual_condition_analyzer)
+    ],
+    symptom_extractor: Annotated[SymptomExtractor, Depends(get_symptom_extractor)],
+    comparator: Annotated[PhotoComparator, Depends(get_photo_comparator)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> DecisionAssessmentResult:
+    plant = require_plant(session, plant_id, current_user.id)
+    observation = require_observation(session, plant_id, observation_id, current_user.id)
+    if not observation.photos:
+        raise HTTPException(status_code=409, detail="У наблюдения нет фотографии")
+
+    photo = storage.locate(observation.photos[0].storage_key)
+    image_reference = ImageReference(uri=str(photo.path), media_type=photo.media_type)
+    identification = identifier.identify(image_reference)
+    visual = visual_analyzer.analyze(image_reference)
+    text_analysis = symptom_extractor.extract(observation.description or "")
+
+    previous = session.scalar(
+        select(Observation)
+        .where(
+            Observation.plant_id == plant_id,
+            Observation.id != observation.id,
+            Observation.observed_at < observation.observed_at,
+        )
+        .options(selectinload(Observation.photos))
+        .order_by(Observation.observed_at.desc())
+        .limit(1)
+    )
+    photos_comparable = None
+    dynamics_trend = None
+    if previous is not None and previous.photos:
+        previous_photo = storage.locate(previous.photos[0].storage_key)
+        previous_reference = ImageReference(
+            uri=str(previous_photo.path), media_type=previous_photo.media_type
+        )
+        comparison = comparator.compare(previous_reference, image_reference)
+        photos_comparable = comparison.comparable
+        if comparison.comparable:
+            previous_visual = visual_analyzer.analyze(previous_reference)
+            if previous_visual.analyzable and visual.analyzable:
+                dynamics_trend = calculate_dynamics(
+                    previous_visual.findings, visual.findings
+                ).trend.value
+
+    environment_alerts = []
+    humidity = float(observation.humidity_pct) if observation.humidity_pct is not None else None
+    temperature = (
+        float(observation.temperature_c) if observation.temperature_c is not None else None
+    )
+    if humidity is not None and humidity < 20:
+        environment_alerts.append("humidity_too_low")
+    elif humidity is not None and humidity > 85:
+        environment_alerts.append("humidity_too_high")
+    if temperature is not None and temperature < 10:
+        environment_alerts.append("temperature_too_low")
+    elif temperature is not None and temperature > 35:
+        environment_alerts.append("temperature_too_high")
+
+    decision = evaluate(
+        AssessmentSignals(
+            identification=identification.candidates,
+            visual_findings=visual.findings,
+            text_findings=text_analysis.findings,
+            species_confirmed=plant.species_status == "confirmed",
+            image_analyzable=visual.analyzable,
+            text_analyzable=text_analysis.analyzable,
+            humidity_pct=humidity,
+            temperature_c=temperature,
+            photos_comparable=photos_comparable,
+            dynamics_trend=dynamics_trend,
+            environment_alerts=environment_alerts,
+        )
+    )
+    risk_level = {
+        RiskLevel.UNDETERMINED: "unknown",
+        RiskLevel.LOW: "low",
+        RiskLevel.MODERATE: "medium",
+        RiskLevel.HIGH: "high",
+    }[decision.risk]
+    assessment_status = (
+        "needs_review"
+        if decision.requires_more_data or decision.requires_species_confirmation
+        else "succeeded"
+    )
+    top_candidate = identification.candidates[0] if identification.candidates else None
+    top_finding = max(decision.evidence, key=lambda item: item.confidence, default=None)
+    model_version = "+".join(
+        (
+            identification.model_version,
+            visual.model_version,
+            text_analysis.model_version,
+            f"policy-{decision.policy_version}",
+        )
+    )
+    record = AssessmentRecord(
+        observation_id=observation.id,
+        status=assessment_status,
+        identified_scientific_name=(
+            SPECIES_CATALOG[top_candidate.species_code].scientific_name
+            if top_candidate is not None
+            else None
+        ),
+        identification_confidence=(
+            Decimal(str(top_candidate.confidence)) if top_candidate is not None else None
+        ),
+        finding_code=top_finding.code if top_finding is not None else None,
+        finding_confidence=(
+            Decimal(str(top_finding.confidence)) if top_finding is not None else None
+        ),
+        risk_level=risk_level,
+        model_version=model_version,
+    )
+    session.add(record)
+    session.flush()
+    enqueue_event(
+        session,
+        topic="plant.assessment-results.v1",
+        event=build_assessment_event(
+            assessment_id=record.id,
+            observation_id=observation.id,
+            plant_id=plant.id,
+            status=assessment_status,
+            risk_level=risk_level,
+            finding_code=record.finding_code,
+            finding_confidence=(
+                float(record.finding_confidence)
+                if record.finding_confidence is not None
+                else None
+            ),
+            explanation=None,
+            model_version=model_version,
+        ),
+    )
+    session.commit()
+
+    return DecisionAssessmentResult(
+        assessment_id=record.id,
+        observation_id=observation.id,
+        status=assessment_status,
+        risk_level=risk_level,
+        requires_species_confirmation=decision.requires_species_confirmation,
+        requires_more_data=decision.requires_more_data,
+        conflicting_evidence=decision.conflicting_evidence,
+        missing_inputs=list(decision.missing_inputs),
+        evidence=[
+            DecisionEvidenceResult(
+                code=item.code,
+                confidence=item.confidence,
+                source=item.source,
+            )
+            for item in decision.evidence
+        ],
+        recommended_actions=list(decision.recommended_actions),
+        policy_version=decision.policy_version,
+        model_version=model_version,
     )
 
 
