@@ -124,6 +124,7 @@ def test_plant_history_survives_api_restart(history_client):
         "repeat.jpg",
     }
     assert payload["care_events"][0]["action_type"] == "watered"
+    assert payload["assessments"] == []
     with history_client() as session:
         queued = session.scalars(select(OutboxEvent).order_by(OutboxEvent.created_at)).all()
     assert [event.topic for event in queued] == [
@@ -143,6 +144,23 @@ def test_history_returns_not_found_for_unknown_plant(history_client):
         )
 
     assert response.status_code == 404
+
+
+def test_plant_list_only_contains_current_users_plants(history_client):
+    with TestClient(app) as client:
+        first_user = register(client, "list-first@example.com")
+        second_user = register(client, "list-second@example.com")
+        client.post(
+            "/api/v1/plants", json={"nickname": "Монстера"}, headers=first_user
+        )
+        client.post(
+            "/api/v1/plants", json={"nickname": "Фикус"}, headers=second_user
+        )
+
+        response = client.get("/api/v1/plants", headers=first_user)
+
+    assert response.status_code == 200
+    assert [plant["nickname"] for plant in response.json()] == ["Монстера"]
 
 
 def test_users_cannot_access_or_modify_each_others_plants(history_client):

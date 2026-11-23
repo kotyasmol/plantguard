@@ -1,136 +1,253 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { ObservationValidationResult, validateObservation } from "./api";
+import {
+  Assessment,
+  Dynamics,
+  Identification,
+  Plant,
+  PlantHistory,
+  SpeciesCandidate,
+  assessObservation,
+  confirmSpecies,
+  createCareEvent,
+  createObservation,
+  createPlant,
+  identifyObservation,
+  listPlants,
+  loadDynamics,
+  loadHistory,
+  registerUser,
+} from "./api";
+import { CreatePlant } from "./CreatePlant";
+import { LeafMark } from "./icons";
+import { ObservationComposer } from "./ObservationComposer";
+import { Onboarding } from "./Onboarding";
+import { PlantWorkspace } from "./PlantWorkspace";
+import { MobileNav, Sidebar } from "./Sidebar";
 
-type SubmitState =
-  | { kind: "idle" }
-  | { kind: "submitting" }
-  | { kind: "success"; result: ObservationValidationResult }
-  | { kind: "error"; message: string };
+const TOKEN_KEY = "plantguard_access_token";
+const PLANT_KEY = "plantguard_selected_plant";
+
+function restoredAssessment(history: PlantHistory): Assessment | null {
+  const stored = history.assessments[0];
+  if (!stored?.explanation) return null;
+  return {
+    assessment_id: stored.id,
+    observation_id: stored.observation_id,
+    status: stored.status,
+    risk_level: stored.risk_level,
+    requires_species_confirmation: history.plant.species_status !== "confirmed",
+    requires_more_data: stored.status === "needs_review",
+    conflicting_evidence: false,
+    missing_inputs: [],
+    evidence: stored.finding_code ? [{
+      code: stored.finding_code,
+      confidence: stored.finding_confidence ?? 0,
+      source: "stored",
+    }] : [],
+    recommended_actions: [],
+    explanation: stored.explanation,
+    explanation_source: "stored",
+    policy_version: "stored",
+    model_version: stored.model_version ?? "stored",
+  };
+}
 
 export function App() {
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [submitState, setSubmitState] = useState<SubmitState>({ kind: "idle" });
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
+  const [plants, setPlants] = useState<Plant[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(() => localStorage.getItem(PLANT_KEY));
+  const [history, setHistory] = useState<PlantHistory | null>(null);
+  const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [identification, setIdentification] = useState<Identification | null>(null);
+  const [dynamics, setDynamics] = useState<Dynamics | null>(null);
+  const [loading, setLoading] = useState(Boolean(token));
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreatePlant, setShowCreatePlant] = useState(false);
+  const [showObservation, setShowObservation] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [carePending, setCarePending] = useState(false);
 
   useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+    if (!token) return;
+    setLoading(true);
+    listPlants(token)
+      .then((items) => {
+        setPlants(items);
+        const current = items.some((item) => item.id === selectedId) ? selectedId : items[0]?.id ?? null;
+        setSelectedId(current);
+        if (current) localStorage.setItem(PLANT_KEY, current);
+        setShowCreatePlant(items.length === 0);
+        setError(null);
+      })
+      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Не удалось загрузить растения"))
+      .finally(() => setLoading(false));
+  }, [token]);
 
-  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
-    const selectedPhoto = event.target.files?.[0] ?? null;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPhoto(selectedPhoto);
-    setPreviewUrl(selectedPhoto ? URL.createObjectURL(selectedPhoto) : null);
-    setSubmitState({ kind: "idle" });
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!photo) {
-      setSubmitState({ kind: "error", message: "Добавь фотографию растения" });
+  useEffect(() => {
+    if (!token || !selectedId) {
+      setHistory(null);
       return;
     }
+    setLoading(true);
+    loadHistory(token, selectedId)
+      .then((nextHistory) => {
+        setHistory(nextHistory);
+        setAssessment(restoredAssessment(nextHistory));
+        setIdentification(null);
+        setDynamics(null);
+        setError(null);
+      })
+      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Не удалось загрузить историю"))
+      .finally(() => setLoading(false));
+  }, [token, selectedId]);
 
-    const formData = new FormData(event.currentTarget);
-    setSubmitState({ kind: "submitting" });
-
+  async function register(displayName: string, email: string) {
+    setPending(true);
+    setError(null);
     try {
-      const result = await validateObservation(formData);
-      setSubmitState({ kind: "success", result });
-    } catch (error) {
-      setSubmitState({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Не удалось проверить данные",
-      });
+      const result = await registerUser(displayName, email);
+      localStorage.setItem(TOKEN_KEY, result.access_token);
+      setToken(result.access_token);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Не удалось создать профиль");
+    } finally {
+      setPending(false);
     }
   }
+
+  async function addPlant(nickname: string) {
+    if (!token) return;
+    setPending(true);
+    setError(null);
+    try {
+      const plant = await createPlant(token, nickname);
+      setPlants((items) => [plant, ...items]);
+      setSelectedId(plant.id);
+      localStorage.setItem(PLANT_KEY, plant.id);
+      setShowCreatePlant(false);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Не удалось добавить растение");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function selectPlant(plantId: string) {
+    setSelectedId(plantId);
+    localStorage.setItem(PLANT_KEY, plantId);
+    setShowCreatePlant(false);
+  }
+
+  async function addObservation(formData: FormData) {
+    if (!token || !selectedId || !history) return;
+    setPending(true);
+    setError(null);
+    try {
+      const observation = await createObservation(token, selectedId, formData);
+      const [nextIdentification, nextAssessment] = await Promise.all([
+        identifyObservation(token, selectedId, observation.id),
+        assessObservation(token, selectedId, observation.id),
+      ]);
+      setIdentification(nextIdentification);
+      setAssessment(nextAssessment);
+      if (history.observations[0]) {
+        const nextDynamics = await loadDynamics(token, selectedId, observation.id, history.observations[0].id);
+        setDynamics(nextDynamics);
+      }
+      const nextHistory = await loadHistory(token, selectedId);
+      setHistory(nextHistory);
+      setPlants((items) => items.map((item) => item.id === selectedId ? nextHistory.plant : item));
+      setShowObservation(false);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Не удалось обработать наблюдение");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function confirm(candidate: SpeciesCandidate) {
+    if (!token || !selectedId) return;
+    setConfirming(true);
+    try {
+      const plant = await confirmSpecies(token, selectedId, candidate);
+      setPlants((items) => items.map((item) => item.id === plant.id ? plant : item));
+      setHistory((current) => current ? { ...current, plant } : current);
+      setAssessment((current) => current ? { ...current, requires_species_confirmation: false } : current);
+      setError(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Не удалось подтвердить вид");
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  async function addCare(actionType: string, notes: string) {
+    if (!token || !selectedId) return;
+    setCarePending(true);
+    try {
+      await createCareEvent(token, selectedId, actionType, notes);
+      setHistory(await loadHistory(token, selectedId));
+      setError(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Не удалось сохранить действие");
+    } finally {
+      setCarePending(false);
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(PLANT_KEY);
+    setToken(null);
+    setPlants([]);
+    setSelectedId(null);
+    setHistory(null);
+    setAssessment(null);
+    setError(null);
+  }
+
+  if (!token) return <Onboarding pending={pending} error={error} onRegister={register} />;
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="PlantGuard, главная">
-          <span className="brand-mark" aria-hidden="true">P</span>
-          <span>PlantGuard</span>
-        </a>
-        <span className="topbar-caption">Технический прототип</span>
-      </header>
-
-      <main className="page">
-        <section className="intro" aria-labelledby="page-title">
-          <p className="step">Первое наблюдение</p>
-          <h1 id="page-title">Познакомимся с растением</h1>
-          <p>
-            Сейчас форма проверяет фотографию и введённые показатели. Сохранение карточки,
-            распознавание вида и анализ состояния будут подключены на следующих этапах.
-          </p>
-        </section>
-
-        <form className="observation-form" onSubmit={handleSubmit}>
-          <fieldset>
-            <legend>Фотография</legend>
-            <label className={`photo-input ${previewUrl ? "has-photo" : ""}`}>
-              <input
-                type="file"
-                name="photo"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handlePhotoChange}
-              />
-              {previewUrl ? (
-                <img src={previewUrl} alt="Выбранное растение" />
-              ) : (
-                <span>
-                  <strong>Выбрать снимок</strong>
-                  <small>JPEG, PNG или WebP до 10 МБ</small>
-                </span>
-              )}
-            </label>
-          </fieldset>
-
-          <fieldset>
-            <legend>Наблюдение</legend>
-            <label className="field field-wide">
-              <span>Что изменилось или беспокоит?</span>
-              <textarea
-                name="description"
-                rows={5}
-                placeholder="Например: желтеют нижние листья, неделю назад пересадила…"
-              />
-            </label>
-
-            <div className="field-row">
-              <label className="field">
-                <span>Влажность, %</span>
-                <input name="humidity_pct" type="number" min="0" max="100" inputMode="decimal" />
-              </label>
-              <label className="field">
-                <span>Температура, °C</span>
-                <input
-                  name="temperature_c"
-                  type="number"
-                  min="-50"
-                  max="70"
-                  step="0.1"
-                  inputMode="decimal"
-                />
-              </label>
-            </div>
-          </fieldset>
-
-          <button className="primary-action" type="submit" disabled={submitState.kind === "submitting"}>
-            {submitState.kind === "submitting" ? "Проверяем…" : "Проверить данные"}
-          </button>
-
-          <div className="feedback" aria-live="polite">
-            {submitState.kind === "error" && <p className="error">{submitState.message}</p>}
-            {submitState.kind === "success" && (
-              <p className="success">{submitState.result.message}.</p>
-            )}
-          </div>
-        </form>
-      </main>
+      <Sidebar
+        plants={plants}
+        selectedId={selectedId}
+        onSelect={selectPlant}
+        onAddPlant={() => setShowCreatePlant(true)}
+        onAddObservation={() => selectedId && setShowObservation(true)}
+        onLogout={logout}
+      />
+      {loading && !history && !showCreatePlant ? (
+        <main className="loading-stage"><LeafMark /><span>Загружаем пространство…</span></main>
+      ) : showCreatePlant || plants.length === 0 ? (
+        <CreatePlant hasPlants={plants.length > 0} pending={pending} error={error} onCreate={addPlant} onCancel={() => setShowCreatePlant(false)} />
+      ) : history ? (
+        <PlantWorkspace
+          history={history}
+          assessment={assessment}
+          dynamics={dynamics}
+          identification={identification}
+          confirming={confirming}
+          carePending={carePending}
+          onAddObservation={() => setShowObservation(true)}
+          onConfirm={confirm}
+          onCare={addCare}
+        />
+      ) : null}
+      {error && history && !showObservation && <div className="global-error" role="alert">{error}<button onClick={() => setError(null)} aria-label="Закрыть">×</button></div>}
+      {showObservation && history && (
+        <ObservationComposer
+          plantName={history.plant.nickname}
+          pending={pending}
+          error={error}
+          onClose={() => { setShowObservation(false); setError(null); }}
+          onSubmit={addObservation}
+        />
+      )}
+      <MobileNav onAddPlant={() => setShowCreatePlant(true)} onAddObservation={() => selectedId && setShowObservation(true)} />
     </div>
   );
 }

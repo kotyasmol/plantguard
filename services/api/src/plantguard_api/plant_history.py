@@ -66,6 +66,7 @@ from .schemas import (
     PlantResult,
     PlantSpeciesUpdate,
     SpeciesCandidateResult,
+    StoredAssessmentResult,
     TextAnalysisResult,
     TextFindingResult,
     VisualAnalysisResult,
@@ -162,6 +163,20 @@ def create_plant(
     session.commit()
     session.refresh(plant)
     return plant
+
+
+@router.get("", response_model=list[PlantResult])
+def list_plants(
+    session: Annotated[Session, Depends(get_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> list[Plant]:
+    return list(
+        session.scalars(
+            select(Plant)
+            .where(Plant.owner_id == current_user.id)
+            .order_by(Plant.updated_at.desc())
+        ).all()
+    )
 
 
 @router.get("/{plant_id}", response_model=PlantResult)
@@ -735,12 +750,25 @@ def get_plant_history(
     plant = session.scalar(
         select(Plant)
         .where(Plant.id == plant_id, Plant.owner_id == current_user.id)
-        .options(selectinload(Plant.observations).selectinload(Observation.photos))
+        .options(
+            selectinload(Plant.observations).selectinload(Observation.photos),
+            selectinload(Plant.observations).selectinload(Observation.assessments),
+            selectinload(Plant.care_events),
+        )
     )
     if plant is None:
         raise HTTPException(status_code=404, detail="Растение не найдено")
     observations = sorted(plant.observations, key=lambda item: item.observed_at, reverse=True)
     care_events = sorted(plant.care_events, key=lambda item: item.performed_at, reverse=True)
+    assessments = sorted(
+        (
+            assessment
+            for observation in plant.observations
+            for assessment in observation.assessments
+        ),
+        key=lambda item: item.created_at,
+        reverse=True,
+    )
     return PlantHistoryResult(
         plant=PlantResult.model_validate(plant),
         observations=[
@@ -748,4 +776,5 @@ def get_plant_history(
             for observation in observations
         ],
         care_events=[CareEventResult.model_validate(event) for event in care_events],
+        assessments=[StoredAssessmentResult.model_validate(item) for item in assessments],
     )

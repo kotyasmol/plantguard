@@ -115,10 +115,27 @@ class CareEventResult(BaseModel):
     created_at: datetime
 
 
+class StoredAssessmentResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    observation_id: UUID
+    status: str
+    identified_scientific_name: Optional[str]
+    identification_confidence: Optional[float]
+    finding_code: Optional[str]
+    finding_confidence: Optional[float]
+    risk_level: str
+    explanation: Optional[str]
+    model_version: Optional[str]
+    created_at: datetime
+
+
 class PlantHistoryResult(BaseModel):
     plant: PlantResult
     observations: list[ObservationResult]
     care_events: list[CareEventResult]
+    assessments: list[StoredAssessmentResult]
 
 
 class SpeciesCandidateResult(BaseModel):
