@@ -67,6 +67,20 @@ describe("PlantGuard workflow", () => {
     expect(localStorage.getItem("plantguard_access_token")).toBe("secret-token");
   });
 
+  it("renders structured validation errors as readable text", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => json({
+      detail: [{ loc: ["body", "email"], msg: "некорректный адрес", type: "value_error" }],
+    }, false)));
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Как к вам обращаться"), { target: { value: "Екатерина" } });
+    fireEvent.change(screen.getByLabelText("Электронная почта"), { target: { value: "wrong@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Начать наблюдение" }));
+
+    expect(await screen.findByText("email: некорректный адрес")).toBeVisible();
+    expect(screen.queryByText(/object Object/)).not.toBeInTheDocument();
+  });
+
   it("creates an observation and shows the grounded assessment", async () => {
     localStorage.setItem("plantguard_access_token", "secret-token");
     let history: PlantHistory = emptyHistory;
@@ -93,6 +107,8 @@ describe("PlantGuard workflow", () => {
       if (path.endsWith("/api/v1/plants") && !init?.method) return json([plant]);
       if (path.endsWith(`/api/v1/plants/${plant.id}/history`)) return json(history);
       if (path.endsWith(`/api/v1/plants/${plant.id}/observations`) && init?.method === "POST") {
+        expect((init.body as FormData).has("humidity_pct")).toBe(false);
+        expect((init.body as FormData).has("temperature_c")).toBe(false);
         history = { ...emptyHistory, observations: [observation] };
         return json(observation);
       }
@@ -103,6 +119,11 @@ describe("PlantGuard workflow", () => {
           scientific_name: "Monstera deliciosa",
           common_name: "Монстера деликатесная",
           confidence: .91,
+        }, {
+          species_code: "epipremnum_aureum",
+          scientific_name: "Epipremnum aureum",
+          common_name: "Эпипремнум золотистый",
+          confidence: .06,
         }],
         recognized: true,
         needs_review: false,
@@ -139,7 +160,7 @@ describe("PlantGuard workflow", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6));
     expect(await screen.findByText(/заметно пожелтение листа/i)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Подтвердить" })).toBeEnabled();
+    expect(screen.getAllByRole("button", { name: "Это оно" })).toHaveLength(2);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

@@ -11,11 +11,12 @@ const riskCopy = {
 type Props = {
   assessment: Assessment | null;
   identification: Identification | null;
+  speciesConfirmed: boolean;
   confirming: boolean;
   onConfirm: (candidate: SpeciesCandidate) => Promise<void>;
 };
 
-export function AssessmentPanel({ assessment, identification, confirming, onConfirm }: Props) {
+export function AssessmentPanel({ assessment, identification, speciesConfirmed, confirming, onConfirm }: Props) {
   if (!assessment) {
     return (
       <section className="assessment-panel assessment-empty">
@@ -28,7 +29,11 @@ export function AssessmentPanel({ assessment, identification, confirming, onConf
       </section>
     );
   }
-  const topCandidate = identification?.candidates[0];
+  const candidates = identification?.candidates ?? [];
+  const topCandidate = candidates[0];
+  const providerLabel = identification?.model_version.startsWith("plantnet")
+    ? "широкий каталог"
+    : "локальная модель";
   return (
     <section className={`assessment-panel risk-${assessment.risk_level}`}>
       <div className="assessment-heading">
@@ -45,16 +50,25 @@ export function AssessmentPanel({ assessment, identification, confirming, onConf
           <div><span>Что сделать сейчас</span><strong>{assessment.recommended_actions[0]}</strong></div>
         </div>
       )}
-      {topCandidate && assessment.requires_species_confirmation && (
-        <div className="species-suggestion">
-          <div>
-            <span>Вероятный вид</span>
-            <strong>{topCandidate.common_name}</strong>
-            <small>{topCandidate.scientific_name}</small>
+      {topCandidate && !speciesConfirmed && (
+        <div className="species-suggestions">
+          <div className="species-suggestions-heading">
+            <div><span>Возможные виды</span><strong>Выберите правильное растение</strong></div>
+            <small>{providerLabel}</small>
           </div>
-          <button className="button button-outline" type="button" disabled={confirming} onClick={() => onConfirm(topCandidate)}>
-            {confirming ? "Подтверждаем…" : "Подтвердить"}
-          </button>
+          <ol>
+            {candidates.map((candidate) => (
+              <li key={candidate.species_code}>
+                <div>
+                  <span>{Math.round(candidate.confidence * 100)}%</span>
+                  <p><strong>{candidate.common_name}</strong><small>{candidate.scientific_name}</small></p>
+                </div>
+                <button className="button button-outline" type="button" disabled={confirming} onClick={() => onConfirm(candidate)}>
+                  {confirming ? "Сохраняем…" : "Это оно"}
+                </button>
+              </li>
+            ))}
+          </ol>
         </div>
       )}
       <p className="assessment-disclaimer">Предварительная оценка, не диагноз специалиста</p>

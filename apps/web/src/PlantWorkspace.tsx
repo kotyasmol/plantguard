@@ -74,7 +74,13 @@ export function PlantWorkspace({
 
       <div className="workspace-grid">
         <div className="workspace-main">
-          <AssessmentPanel assessment={assessment} identification={identification} confirming={confirming} onConfirm={onConfirm} />
+          <AssessmentPanel
+            assessment={assessment}
+            identification={identification}
+            speciesConfirmed={history.plant.species_status === "confirmed"}
+            confirming={confirming}
+            onConfirm={onConfirm}
+          />
           <div className="environment-strip">
             <div><DropletIcon /><span><strong>{latest?.humidity_pct ?? "—"}{latest?.humidity_pct != null && "%"}</strong> влажность</span></div>
             <div><ThermometerIcon /><span><strong>{latest?.temperature_c ?? "—"}{latest?.temperature_c != null && "°"}</strong> температура</span></div>

@@ -123,10 +123,27 @@ async function request<T>(path: string, init: RequestInit = {}, token?: string):
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   const response = await fetch(`${API_URL}${path}`, { ...init, headers });
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(payload?.detail ?? "Не удалось выполнить запрос");
+    const payload = (await response.json().catch(() => null)) as { detail?: unknown } | null;
+    throw new Error(readErrorDetail(payload?.detail));
   }
   return response.json() as Promise<T>;
+}
+
+function readErrorDetail(detail: unknown): string {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const issue = item as { msg?: unknown; loc?: unknown };
+      if (typeof issue.msg !== "string") return [];
+      const location = Array.isArray(issue.loc)
+        ? issue.loc.filter((part) => part !== "body").join(" → ")
+        : "";
+      return [`${location ? `${location}: ` : ""}${issue.msg}`];
+    });
+    if (messages.length) return messages.join("; ");
+  }
+  return "Не удалось выполнить запрос";
 }
 
 export function registerUser(displayName: string, email: string): Promise<Registration> {

@@ -146,10 +146,8 @@ export function App() {
     setError(null);
     try {
       const observation = await createObservation(token, selectedId, formData);
-      const [nextIdentification, nextAssessment] = await Promise.all([
-        identifyObservation(token, selectedId, observation.id),
-        assessObservation(token, selectedId, observation.id),
-      ]);
+      const nextIdentification = await identifyObservation(token, selectedId, observation.id);
+      const nextAssessment = await assessObservation(token, selectedId, observation.id);
       setIdentification(nextIdentification);
       setAssessment(nextAssessment);
       if (history.observations[0]) {

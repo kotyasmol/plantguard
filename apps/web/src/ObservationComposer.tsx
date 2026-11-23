@@ -28,7 +28,11 @@ export function ObservationComposer({ plantName, pending, error, onClose, onSubm
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!photo) return;
-    await onSubmit(new FormData(event.currentTarget));
+    const formData = new FormData(event.currentTarget);
+    for (const field of ["humidity_pct", "temperature_c"]) {
+      if (formData.get(field) === "") formData.delete(field);
+    }
+    await onSubmit(formData);
   }
 
   return (
