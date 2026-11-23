@@ -216,6 +216,12 @@ def test_identification_suggests_species_and_manual_correction_confirms_it(histo
                     IdentificationCandidate(
                         "ficus_elastica", "Фикус каучуконосный", 0.03
                     ),
+                    IdentificationCandidate(
+                        "crassula_ovata", "Толстянка яйцевидная", 0.0
+                    ),
+                    IdentificationCandidate(
+                        "dracaena_fragrans", "Драцена душистая", 0.0
+                    ),
                 ),
                 recognized=True,
                 model_version="fake-species-model",
@@ -249,7 +255,7 @@ def test_identification_suggests_species_and_manual_correction_confirms_it(histo
 
     assert identification.status_code == 200
     assert identification.json()["recognized"] is True
-    assert len(identification.json()["candidates"]) == 3
+    assert len(identification.json()["candidates"]) == 5
     assert suggested.json()["species_status"] == "suggested"
     assert suggested.json()["species_scientific_name"] == "Monstera deliciosa"
     assert corrected.json()["species_status"] == "confirmed"
@@ -261,6 +267,7 @@ def test_identification_suggests_species_and_manual_correction_confirms_it(histo
             )
         ).all()
     assert len(identification_events) == 1
+    assert len(identification_events[0].payload["candidates"]) == 3
 
 
 def test_identification_accepts_species_outside_local_catalog(history_client):

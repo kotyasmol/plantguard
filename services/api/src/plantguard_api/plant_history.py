@@ -343,7 +343,7 @@ def identify_observation(
                     common_name=candidate.common_name,
                     confidence=candidate.confidence,
                 )
-                for candidate in candidates
+                for candidate in candidates[:3]
             ],
             needs_review=not outcome.recognized,
             model_version=outcome.model_version,
