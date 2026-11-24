@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
-import { Plant, PlantHistory, loadDynamics } from "./api";
+import { Observation, Plant, PlantHistory, loadDynamics } from "./api";
+import { Timeline } from "./Timeline";
 
 function json(payload: unknown, ok = true) {
   return Promise.resolve({ ok, json: () => Promise.resolve(payload) } as Response);
@@ -19,6 +20,58 @@ const plant: Plant = {
 };
 
 const emptyHistory: PlantHistory = { plant, observations: [], care_events: [], assessments: [] };
+
+function observation(id: string, observedAt: string, description: string): Observation {
+  return {
+    id,
+    plant_id: plant.id,
+    description,
+    humidity_pct: id === "old" ? 48 : 58,
+    temperature_c: id === "old" ? 21 : 23,
+    observed_at: observedAt,
+    created_at: observedAt,
+    photos: [{
+      id: `photo-${id}`,
+      storage_key: `${id}.jpg`,
+      original_filename: `${id}.jpg`,
+      media_type: "image/jpeg",
+      size_bytes: 100,
+      checksum_sha256: id.repeat(64).slice(0, 64),
+      read_url: `/${id}.jpg`,
+    }],
+  };
+}
+
+describe("photo archive", () => {
+  it("shows saved photos chronologically and lets the user review progress", () => {
+    render(<Timeline
+      observations={[
+        observation("new", "2026-02-01T12:00:00Z", "Появился новый лист"),
+        observation("old", "2026-01-01T12:00:00Z", "Листья были поникшими"),
+      ]}
+      careEvents={[]}
+    />);
+
+    expect(screen.getByRole("heading", { name: "Архив снимков" })).toBeVisible();
+    expect(screen.getByText("2 снимка")).toBeVisible();
+    const archive = screen.getByLabelText("Снимки растения по датам");
+    const archiveButtons = within(archive).getAllByRole("button");
+    expect(archiveButtons[0]).toHaveAccessibleName(/1 января/);
+    expect(archiveButtons[1]).toHaveAccessibleName(/1 февраля/);
+
+    fireEvent.click(archiveButtons[0]);
+    const viewer = screen.getByRole("dialog");
+    expect(within(viewer).getByText("Листья были поникшими")).toBeVisible();
+    expect(within(viewer).getByText("48%")).toBeVisible();
+
+    fireEvent.click(within(viewer).getByRole("button", { name: "Следующий снимок" }));
+    expect(within(viewer).getByText("Появился новый лист")).toBeVisible();
+    expect(within(viewer).getByText("58%")).toBeVisible();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
 
 describe("PlantGuard workflow", () => {
   beforeEach(() => {
