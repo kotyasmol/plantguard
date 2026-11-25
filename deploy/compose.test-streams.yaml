@@ -1,0 +1,8 @@
+# Test-only override: Kafka and ksqlDB communicate inside the Compose network.
+# Host ports are intentionally removed so the suite can run beside the local stack.
+services:
+  kafka:
+    ports: !reset []
+
+  ksqldb:
+    ports: !reset []

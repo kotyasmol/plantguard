@@ -40,10 +40,12 @@ test-migrations:
 		docker compose -p plantguard-migrations --profile tests run --build --rm migration-test
 
 test-streams:
-	@trap 'docker compose -p plantguard-streams down --volumes --remove-orphans >/dev/null' EXIT; \
-		docker compose -p plantguard-streams up --detach --wait kafka ksqldb; \
-		docker compose -p plantguard-streams --profile tools run --rm ksqldb-init; \
-		docker compose -p plantguard-streams run --build --rm --no-deps api \
+	@set -eu; \
+		compose='docker compose -p plantguard-streams -f compose.yaml -f deploy/compose.test-streams.yaml'; \
+		trap "$$compose down --volumes --remove-orphans >/dev/null" EXIT; \
+		$$compose up --detach --wait kafka ksqldb; \
+		$$compose --profile tools run --rm ksqldb-init; \
+		$$compose run --build --rm --no-deps api \
 			python /workspace/scripts/test_stream_processing.py
 
 lint:
