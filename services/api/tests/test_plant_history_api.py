@@ -39,10 +39,41 @@ def image_bytes() -> bytes:
 
 def register(client: TestClient, email: str = "owner@example.com") -> dict[str, str]:
     response = client.post(
-        "/api/v1/users", json={"email": email, "display_name": "Владелец"}
+        "/api/v1/users",
+        json={"email": email, "display_name": "Владелец", "password": "safe-test-password"},
     )
     assert response.status_code == 201
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def test_registered_user_can_sign_in_again(history_client):
+    with TestClient(app) as client:
+        first_headers = register(client, "returning@example.com")
+        login = client.post(
+            "/api/v1/sessions",
+            json={"email": "RETURNING@example.com", "password": "safe-test-password"},
+        )
+
+        assert login.status_code == 200
+        second_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        assert client.get("/api/v1/users/me", headers=second_headers).status_code == 200
+        assert client.get("/api/v1/users/me", headers=first_headers).status_code == 401
+
+
+def test_sign_in_does_not_reveal_which_credential_is_wrong(history_client):
+    with TestClient(app) as client:
+        register(client, "auth-errors@example.com")
+        wrong_password = client.post(
+            "/api/v1/sessions",
+            json={"email": "auth-errors@example.com", "password": "wrong-password"},
+        )
+        unknown_email = client.post(
+            "/api/v1/sessions",
+            json={"email": "unknown@example.com", "password": "wrong-password"},
+        )
+
+    assert wrong_password.status_code == unknown_email.status_code == 401
+    assert wrong_password.json()["detail"] == unknown_email.json()["detail"]
 
 
 @pytest.fixture

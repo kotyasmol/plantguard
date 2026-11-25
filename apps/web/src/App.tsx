@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import {
   Assessment,
+  ApiError,
   Dynamics,
   Identification,
   Plant,
@@ -14,6 +15,7 @@ import {
   createPlant,
   identifyObservation,
   listPlants,
+  loginUser,
   loadDynamics,
   loadHistory,
   registerUser,
@@ -69,6 +71,15 @@ export function App() {
   const [confirming, setConfirming] = useState(false);
   const [carePending, setCarePending] = useState(false);
 
+  function handleRequestError(requestError: unknown, fallback: string) {
+    if (requestError instanceof ApiError && requestError.status === 401) {
+      logout();
+      setError("Сессия истекла. Войдите в профиль ещё раз.");
+      return;
+    }
+    setError(requestError instanceof Error ? requestError.message : fallback);
+  }
+
   useEffect(() => {
     if (!token) return;
     setLoading(true);
@@ -81,7 +92,7 @@ export function App() {
         setShowCreatePlant(items.length === 0);
         setError(null);
       })
-      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Не удалось загрузить растения"))
+      .catch((requestError) => handleRequestError(requestError, "Не удалось загрузить растения"))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -99,19 +110,36 @@ export function App() {
         setDynamics(null);
         setError(null);
       })
-      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Не удалось загрузить историю"))
+      .catch((requestError) => handleRequestError(requestError, "Не удалось загрузить историю"))
       .finally(() => setLoading(false));
   }, [token, selectedId]);
 
-  async function register(displayName: string, email: string) {
+  function saveSession(accessToken: string) {
+    localStorage.setItem(TOKEN_KEY, accessToken);
+    setToken(accessToken);
+  }
+
+  async function register(displayName: string, email: string, password: string) {
     setPending(true);
     setError(null);
     try {
-      const result = await registerUser(displayName, email);
-      localStorage.setItem(TOKEN_KEY, result.access_token);
-      setToken(result.access_token);
+      const result = await registerUser(displayName, email, password);
+      saveSession(result.access_token);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Не удалось создать профиль");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function login(email: string, password: string) {
+    setPending(true);
+    setError(null);
+    try {
+      const result = await loginUser(email, password);
+      saveSession(result.access_token);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Не удалось войти");
     } finally {
       setPending(false);
     }
@@ -128,7 +156,7 @@ export function App() {
       localStorage.setItem(PLANT_KEY, plant.id);
       setShowCreatePlant(false);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось добавить растение");
+      handleRequestError(requestError, "Не удалось добавить растение");
     } finally {
       setPending(false);
     }
@@ -144,25 +172,45 @@ export function App() {
     if (!token || !selectedId || !history) return;
     setPending(true);
     setError(null);
+    let observation: Awaited<ReturnType<typeof createObservation>>;
     try {
-      const observation = await createObservation(token, selectedId, formData);
-      const nextIdentification = await identifyObservation(token, selectedId, observation.id);
-      const nextAssessment = await assessObservation(token, selectedId, observation.id);
-      setIdentification(nextIdentification);
-      setAssessment(nextAssessment);
-      if (history.observations[0]) {
-        const nextDynamics = await loadDynamics(token, selectedId, observation.id, history.observations[0].id);
-        setDynamics(nextDynamics);
-      }
+      observation = await createObservation(token, selectedId, formData);
+    } catch (requestError) {
+      handleRequestError(requestError, "Не удалось сохранить наблюдение");
+      setPending(false);
+      return;
+    }
+
+    setShowObservation(false);
+    const reference = history.observations[0];
+    const [identificationResult, assessmentResult, dynamicsResult] = await Promise.allSettled([
+      identifyObservation(token, selectedId, observation.id),
+      assessObservation(token, selectedId, observation.id),
+      reference
+        ? loadDynamics(token, selectedId, observation.id, reference.id)
+        : Promise.resolve<Dynamics | null>(null),
+    ]);
+
+    if (identificationResult.status === "fulfilled") setIdentification(identificationResult.value);
+    else setIdentification(null);
+    if (assessmentResult.status === "fulfilled") setAssessment(assessmentResult.value);
+    if (dynamicsResult.status === "fulfilled") setDynamics(dynamicsResult.value);
+    else setDynamics(null);
+
+    const failures = [identificationResult, assessmentResult, dynamicsResult]
+      .filter((result) => result.status === "rejected")
+      .map((result) => result.reason instanceof Error ? result.reason.message : "ошибка анализа");
+
+    try {
       const nextHistory = await loadHistory(token, selectedId);
       setHistory(nextHistory);
       setPlants((items) => items.map((item) => item.id === selectedId ? nextHistory.plant : item));
-      setShowObservation(false);
+      if (assessmentResult.status === "rejected") setAssessment(restoredAssessment(nextHistory));
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось обработать наблюдение");
-    } finally {
-      setPending(false);
+      failures.push(requestError instanceof Error ? requestError.message : "не удалось обновить историю");
     }
+    setError(failures.length ? `Наблюдение сохранено, но часть анализа недоступна: ${failures.join("; ")}` : null);
+    setPending(false);
   }
 
   async function confirm(candidate: SpeciesCandidate) {
@@ -175,7 +223,7 @@ export function App() {
       setAssessment((current) => current ? { ...current, requires_species_confirmation: false } : current);
       setError(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось подтвердить вид");
+      handleRequestError(requestError, "Не удалось подтвердить вид");
     } finally {
       setConfirming(false);
     }
@@ -189,7 +237,7 @@ export function App() {
       setHistory(await loadHistory(token, selectedId));
       setError(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось сохранить действие");
+      handleRequestError(requestError, "Не удалось сохранить действие");
     } finally {
       setCarePending(false);
     }
@@ -206,7 +254,7 @@ export function App() {
     setError(null);
   }
 
-  if (!token) return <Onboarding pending={pending} error={error} onRegister={register} />;
+  if (!token) return <Onboarding pending={pending} error={error} onRegister={register} onLogin={login} />;
 
   return (
     <div className="app-shell">

@@ -59,6 +59,7 @@ class User(CreatedAtMixin, Base):
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255))
 
     plants: Mapped[list[Plant]] = relationship(
         back_populates="owner", cascade="all, delete-orphan", passive_deletes=True

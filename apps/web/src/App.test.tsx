@@ -5,8 +5,8 @@ import { App } from "./App";
 import { Observation, Plant, PlantHistory, loadDynamics } from "./api";
 import { Timeline } from "./Timeline";
 
-function json(payload: unknown, ok = true) {
-  return Promise.resolve({ ok, json: () => Promise.resolve(payload) } as Response);
+function json(payload: unknown, ok = true, status = ok ? 200 : 400) {
+  return Promise.resolve({ ok, status, json: () => Promise.resolve(payload) } as Response);
 }
 
 const plant: Plant = {
@@ -90,7 +90,8 @@ describe("PlantGuard workflow", () => {
     expect(screen.getByRole("heading", { name: "Понимайте свои растения" })).toBeVisible();
     expect(screen.getByLabelText("Как к вам обращаться")).toBeVisible();
     expect(screen.getByLabelText("Электронная почта")).toBeVisible();
-    expect(screen.getByText(/фотографии доступны только владельцу/i)).toBeVisible();
+    expect(screen.getByLabelText("Пароль")).toBeVisible();
+    expect(screen.getByText(/фотографии доступны только после входа/i)).toBeVisible();
   });
 
   it("registers a profile and offers to create the first plant", async () => {
@@ -114,6 +115,7 @@ describe("PlantGuard workflow", () => {
 
     fireEvent.change(screen.getByLabelText("Как к вам обращаться"), { target: { value: "Екатерина" } });
     fireEvent.change(screen.getByLabelText("Электронная почта"), { target: { value: "katya@example.com" } });
+    fireEvent.change(screen.getByLabelText("Пароль"), { target: { value: "safe-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Начать наблюдение" }));
 
     expect(await screen.findByRole("heading", { name: "Начнём с вашей зелёной коллекции" })).toBeVisible();
@@ -128,10 +130,69 @@ describe("PlantGuard workflow", () => {
 
     fireEvent.change(screen.getByLabelText("Как к вам обращаться"), { target: { value: "Екатерина" } });
     fireEvent.change(screen.getByLabelText("Электронная почта"), { target: { value: "wrong@example.com" } });
+    fireEvent.change(screen.getByLabelText("Пароль"), { target: { value: "safe-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Начать наблюдение" }));
 
     expect(await screen.findByText("email: некорректный адрес")).toBeVisible();
     expect(screen.queryByText(/object Object/)).not.toBeInTheDocument();
+  });
+
+  it("creates the first plant and supports a clean sign out", async () => {
+    localStorage.setItem("plantguard_access_token", "secret-token");
+    const created = { ...plant, id: "created-plant", nickname: "Калатея" };
+    const createdHistory = { ...emptyHistory, plant: created };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path.endsWith("/api/v1/plants") && !init?.method) return json([]);
+      if (path.endsWith("/api/v1/plants") && init?.method === "POST") return json(created);
+      if (path.endsWith(`/api/v1/plants/${created.id}/history`)) return json(createdHistory);
+      return json({ detail: "unexpected" }, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Начнём с вашей зелёной коллекции" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Название растения"), { target: { value: "Калатея" } });
+    fireEvent.click(screen.getAllByRole("button", { name: /добавить растение/i }).at(-1)!);
+
+    expect(await screen.findByRole("heading", { name: "Калатея" })).toBeVisible();
+    expect(localStorage.getItem("plantguard_selected_plant")).toBe(created.id);
+    fireEvent.click(screen.getByRole("button", { name: "Выйти" }));
+    expect(screen.getByRole("heading", { name: "Понимайте свои растения" })).toBeVisible();
+    expect(localStorage.getItem("plantguard_access_token")).toBeNull();
+  });
+
+  it("signs an existing user in and restores the plant list", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.endsWith("/api/v1/sessions")) return json({
+        id: "user-1",
+        email: "katya@example.com",
+        display_name: "Екатерина",
+        created_at: "2026-11-23T10:00:00Z",
+        access_token: "new-secret-token",
+        token_type: "bearer",
+      });
+      if (path.endsWith("/api/v1/plants")) return json([]);
+      return json({ detail: "unexpected" }, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Войти$/ }));
+    fireEvent.change(screen.getByLabelText("Электронная почта"), { target: { value: "katya@example.com" } });
+    fireEvent.change(screen.getByLabelText("Пароль"), { target: { value: "safe-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Войти в профиль" }));
+
+    expect(await screen.findByRole("heading", { name: "Начнём с вашей зелёной коллекции" })).toBeVisible();
+    expect(localStorage.getItem("plantguard_access_token")).toBe("new-secret-token");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/sessions",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ email: "katya@example.com", password: "safe-password" }),
+      }),
+    );
   });
 
   it("requests observation dynamics with the API method expected by the server", async () => {
@@ -210,6 +271,24 @@ describe("PlantGuard workflow", () => {
         policy_version: "2.0",
         model_version: "test",
       });
+      if (path.endsWith("/species") && init?.method === "PATCH") {
+        const confirmed = {
+          ...plant,
+          species_scientific_name: "Monstera deliciosa",
+          species_common_name: "Монстера деликатесная",
+          species_status: "confirmed" as const,
+        };
+        history = { ...history, plant: confirmed };
+        return json(confirmed);
+      }
+      if (path.endsWith("/care-events") && init?.method === "POST") return json({
+        id: "care-1",
+        plant_id: plant.id,
+        action_type: "watered",
+        notes: "Полив 200 мл",
+        performed_at: "2026-11-23T13:00:00Z",
+        created_at: "2026-11-23T13:00:00Z",
+      });
       return json({ detail: "unexpected" }, false);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -227,5 +306,72 @@ describe("PlantGuard workflow", () => {
     expect(await screen.findByText(/заметно пожелтение листа/i)).toBeVisible();
     expect(screen.getAllByRole("button", { name: "Это оно" })).toHaveLength(2);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Это оно" })[0]);
+    expect(await screen.findByText("подтверждён")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Комментарий"), { target: { value: "Полив 200 мл" } });
+    fireEvent.click(screen.getByRole("button", { name: "Добавить в историю" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      `/api/v1/plants/${plant.id}/care-events`,
+      expect.objectContaining({ method: "POST" }),
+    ));
+  });
+
+  it("keeps a saved observation visible when one analysis provider fails", async () => {
+    localStorage.setItem("plantguard_access_token", "secret-token");
+    let history: PlantHistory = emptyHistory;
+    const saved = observation("saved", "2026-11-24T12:00:00Z", "Лист поник");
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path.endsWith("/api/v1/plants") && !init?.method) return json([plant]);
+      if (path.endsWith(`/api/v1/plants/${plant.id}/history`)) return json(history);
+      if (path.endsWith(`/api/v1/plants/${plant.id}/observations`) && init?.method === "POST") {
+        history = { ...emptyHistory, observations: [saved] };
+        return json(saved);
+      }
+      if (path.endsWith("/identify")) return json({ detail: "Сервис распознавания временно недоступен" }, false);
+      if (path.endsWith("/assess")) return json({
+        assessment_id: "assessment-saved",
+        observation_id: saved.id,
+        status: "needs_review",
+        risk_level: "unknown",
+        requires_species_confirmation: true,
+        requires_more_data: true,
+        conflicting_evidence: false,
+        missing_inputs: ["species_confirmation"],
+        evidence: [],
+        recommended_actions: ["Добавьте описание изменений"],
+        explanation: "Наблюдение сохранено, но данных пока недостаточно.",
+        explanation_source: "deterministic",
+        policy_version: "2.0",
+        model_version: "test",
+      });
+      return json({ detail: "unexpected" }, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: plant.nickname })).toBeVisible();
+    fireEvent.click(screen.getAllByRole("button", { name: /новое наблюдение/i })[0]);
+    fireEvent.change(screen.getByLabelText(/добавьте фотографию листа/i), {
+      target: { files: [new File(["image"], "leaf.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
+
+    expect(await screen.findByText("Наблюдение сохранено, но данных пока недостаточно.")).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent(/наблюдение сохранено.*сервис распознавания/i);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Лист поник")).toBeVisible();
+  });
+
+  it("clears an expired local session instead of leaving a blank workspace", async () => {
+    localStorage.setItem("plantguard_access_token", "expired-token");
+    vi.stubGlobal("fetch", vi.fn(() => json({ detail: "Недействительный токен" }, false, 401)));
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Понимайте свои растения" })).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("Сессия истекла");
+    expect(localStorage.getItem("plantguard_access_token")).toBeNull();
   });
 });

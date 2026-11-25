@@ -62,6 +62,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .onboarding-copy { margin: clamp(42px, 7vh, 68px) 0 28px; }
 .onboarding-copy h1 { margin: 0; font-family: Georgia, serif; font-size: clamp(42px, 4.2vw, 58px); font-weight: 400; letter-spacing: -.045em; line-height: .98; }
 .onboarding-copy p { max-width: 480px; margin: 19px 0 0; color: rgba(242, 242, 238, .65); font-size: 15px; line-height: 1.55; }
+.auth-switch { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; max-width: 470px; margin-bottom: 20px; padding: 4px; border: 1px solid var(--line); border-radius: 14px; background: rgba(7, 17, 11, .22); }
+.auth-switch button { min-height: 40px; padding: 8px 14px; border: 0; border-radius: 10px; color: rgba(242, 242, 238, .55); background: transparent; font: inherit; font-size: 13px; cursor: pointer; }
+.auth-switch button.active { color: var(--ivory); background: rgba(146, 173, 140, .2); box-shadow: inset 0 0 0 1px rgba(198, 231, 190, .12); }
 .onboarding-form { display: grid; gap: 18px; max-width: 470px; }
 .onboarding-form .button { margin-top: 6px; }
 .privacy-note { margin: 24px 0 0; color: rgba(242, 242, 238, .38); font-size: 12px; }

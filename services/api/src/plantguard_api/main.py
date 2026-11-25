@@ -38,6 +38,7 @@ from .schemas import (
     ValidationStatus,
 )
 from .users import router as users_router
+from .users import session_router
 
 application_settings = get_settings()
 
@@ -55,6 +56,7 @@ app.add_middleware(
 )
 app.add_middleware(ObservabilityMiddleware)
 app.include_router(users_router)
+app.include_router(session_router)
 app.include_router(plant_history_router)
 
 

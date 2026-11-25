@@ -124,9 +124,16 @@ async function request<T>(path: string, init: RequestInit = {}, token?: string):
   const response = await fetch(`${API_URL}${path}`, { ...init, headers });
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { detail?: unknown } | null;
-    throw new Error(readErrorDetail(payload?.detail));
+    throw new ApiError(response.status, readErrorDetail(payload?.detail));
   }
   return response.json() as Promise<T>;
+}
+
+export class ApiError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
 }
 
 function readErrorDetail(detail: unknown): string {
@@ -146,10 +153,17 @@ function readErrorDetail(detail: unknown): string {
   return "Не удалось выполнить запрос";
 }
 
-export function registerUser(displayName: string, email: string): Promise<Registration> {
+export function registerUser(displayName: string, email: string, password: string): Promise<Registration> {
   return request("/api/v1/users", {
     method: "POST",
-    body: JSON.stringify({ display_name: displayName, email }),
+    body: JSON.stringify({ display_name: displayName, email, password }),
+  });
+}
+
+export function loginUser(email: string, password: string): Promise<Registration> {
+  return request("/api/v1/sessions", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
   });
 }
 

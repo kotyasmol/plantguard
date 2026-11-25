@@ -10,10 +10,17 @@ from sqlalchemy.orm import Session
 from .database import Observation, OutboxEvent, Photo, Plant, User, get_session
 from .dependencies import get_photo_storage
 from .photo_storage import PhotoNotFoundError, PhotoStorage
-from .schemas import UserCreate, UserRegistrationResult, UserResult
-from .security import generate_access_token, get_current_user, hash_access_token
+from .schemas import UserCreate, UserLogin, UserRegistrationResult, UserResult
+from .security import (
+    generate_access_token,
+    get_current_user,
+    hash_access_token,
+    hash_password,
+    verify_password,
+)
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
+session_router = APIRouter(prefix="/api/v1/sessions", tags=["users"])
 
 
 @router.post("", response_model=UserRegistrationResult, status_code=status.HTTP_201_CREATED)
@@ -26,6 +33,7 @@ def register_user(
         email=payload.email.lower(),
         display_name=payload.display_name,
         token_hash=hash_access_token(access_token),
+        password_hash=hash_password(payload.password),
     )
     session.add(user)
     try:
@@ -33,6 +41,24 @@ def register_user(
     except IntegrityError as error:
         session.rollback()
         raise HTTPException(status_code=409, detail="Пользователь уже существует") from error
+    session.refresh(user)
+    return UserRegistrationResult(
+        **UserResult.model_validate(user).model_dump(),
+        access_token=access_token,
+    )
+
+
+@session_router.post("", response_model=UserRegistrationResult)
+def create_session(
+    payload: UserLogin,
+    session: Annotated[Session, Depends(get_session)],
+) -> UserRegistrationResult:
+    user = session.scalar(select(User).where(User.email == payload.email.lower()))
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Неверная почта или пароль")
+    access_token = generate_access_token()
+    user.token_hash = hash_access_token(access_token)
+    session.commit()
     session.refresh(user)
     return UserRegistrationResult(
         **UserResult.model_validate(user).model_dump(),
