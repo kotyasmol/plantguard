@@ -12,6 +12,7 @@ from .dependencies import get_photo_storage
 from .photo_storage import PhotoNotFoundError, PhotoStorage
 from .schemas import UserCreate, UserLogin, UserRegistrationResult, UserResult
 from .security import (
+    DUMMY_PASSWORD_HASH,
     generate_access_token,
     get_current_user,
     hash_access_token,
@@ -54,7 +55,9 @@ def create_session(
     session: Annotated[Session, Depends(get_session)],
 ) -> UserRegistrationResult:
     user = session.scalar(select(User).where(User.email == payload.email.lower()))
-    if user is None or not verify_password(payload.password, user.password_hash):
+    password_hash = user.password_hash if user is not None else DUMMY_PASSWORD_HASH
+    password_is_valid = verify_password(payload.password, password_hash)
+    if user is None or not password_is_valid:
         raise HTTPException(status_code=401, detail="Неверная почта или пароль")
     access_token = generate_access_token()
     user.token_hash = hash_access_token(access_token)

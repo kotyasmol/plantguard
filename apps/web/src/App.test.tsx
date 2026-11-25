@@ -364,6 +364,36 @@ describe("PlantGuard workflow", () => {
     expect(screen.getByText("Лист поник")).toBeVisible();
   });
 
+  it("ignores a stale history response after switching plants", async () => {
+    localStorage.setItem("plantguard_access_token", "secret-token");
+    const secondPlant = { ...plant, id: "plant-2", nickname: "Калатея" };
+    const secondHistory = { ...emptyHistory, plant: secondPlant };
+    let resolveFirstHistory!: (response: Response) => void;
+    const firstHistory = new Promise<Response>((resolve) => { resolveFirstHistory = resolve; });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.endsWith("/api/v1/plants")) return json([plant, secondPlant]);
+      if (path.endsWith(`/api/v1/plants/${plant.id}/history`)) return firstHistory;
+      if (path.endsWith(`/api/v1/plants/${secondPlant.id}/history`)) return json(secondHistory);
+      return json({ detail: "unexpected" }, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: secondPlant.nickname }));
+    expect(await screen.findByRole("heading", { name: secondPlant.nickname })).toBeVisible();
+
+    resolveFirstHistory({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(emptyHistory),
+    } as Response);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+
+    expect(screen.getByRole("heading", { name: secondPlant.nickname })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: plant.nickname })).not.toBeInTheDocument();
+  });
+
   it("clears an expired local session instead of leaving a blank workspace", async () => {
     localStorage.setItem("plantguard_access_token", "expired-token");
     vi.stubGlobal("fetch", vi.fn(() => json({ detail: "Недействительный токен" }, false, 401)));

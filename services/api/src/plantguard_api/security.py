@@ -17,6 +17,10 @@ bearer_scheme = HTTPBearer(auto_error=False)
 PASSWORD_ALGORITHM = "pbkdf2_sha256"
 PASSWORD_ITERATIONS = 210_000
 PASSWORD_DKLEN = 32
+DUMMY_PASSWORD_HASH = (
+    f"{PASSWORD_ALGORITHM}${PASSWORD_ITERATIONS}$"
+    f"{'0' * 32}${'0' * (PASSWORD_DKLEN * 2)}"
+)
 
 
 def hash_access_token(token: str) -> str:

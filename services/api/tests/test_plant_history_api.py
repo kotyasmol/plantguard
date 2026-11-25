@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,6 +20,7 @@ from plantguard_api.dependencies import (
 from plantguard_api.main import app
 from plantguard_api.photo_links import PhotoLinkSigner
 from plantguard_api.photo_storage import LocalPhotoStorage
+from plantguard_api.security import DUMMY_PASSWORD_HASH
 from plantguard_mining import (
     Evidence,
     IdentificationCandidate,
@@ -74,6 +76,18 @@ def test_sign_in_does_not_reveal_which_credential_is_wrong(history_client):
 
     assert wrong_password.status_code == unknown_email.status_code == 401
     assert wrong_password.json()["detail"] == unknown_email.json()["detail"]
+
+
+def test_unknown_email_still_runs_password_verification(history_client):
+    with patch("plantguard_api.users.verify_password", return_value=False) as verifier:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/v1/sessions",
+                json={"email": "unknown@example.com", "password": "wrong-password"},
+            )
+
+    assert response.status_code == 401
+    verifier.assert_called_once_with("wrong-password", DUMMY_PASSWORD_HASH)
 
 
 @pytest.fixture

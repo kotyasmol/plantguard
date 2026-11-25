@@ -18,6 +18,19 @@ export function ObservationComposer({ plantName, pending, error, onClose, onSubm
     if (preview) URL.revokeObjectURL(preview);
   }, [preview]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !pending) onClose();
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onClose, pending]);
+
   function changePhoto(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0] ?? null;
     if (preview) URL.revokeObjectURL(preview);

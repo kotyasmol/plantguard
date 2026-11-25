@@ -82,9 +82,11 @@ export function App() {
 
   useEffect(() => {
     if (!token) return;
+    let active = true;
     setLoading(true);
     listPlants(token)
       .then((items) => {
+        if (!active) return;
         setPlants(items);
         const current = items.some((item) => item.id === selectedId) ? selectedId : items[0]?.id ?? null;
         setSelectedId(current);
@@ -92,8 +94,13 @@ export function App() {
         setShowCreatePlant(items.length === 0);
         setError(null);
       })
-      .catch((requestError) => handleRequestError(requestError, "Не удалось загрузить растения"))
-      .finally(() => setLoading(false));
+      .catch((requestError) => {
+        if (active) handleRequestError(requestError, "Не удалось загрузить растения");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
   }, [token]);
 
   useEffect(() => {
@@ -101,17 +108,24 @@ export function App() {
       setHistory(null);
       return;
     }
+    let active = true;
     setLoading(true);
     loadHistory(token, selectedId)
       .then((nextHistory) => {
+        if (!active) return;
         setHistory(nextHistory);
         setAssessment(restoredAssessment(nextHistory));
         setIdentification(null);
         setDynamics(null);
         setError(null);
       })
-      .catch((requestError) => handleRequestError(requestError, "Не удалось загрузить историю"))
-      .finally(() => setLoading(false));
+      .catch((requestError) => {
+        if (active) handleRequestError(requestError, "Не удалось загрузить историю");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
   }, [token, selectedId]);
 
   function saveSession(accessToken: string) {
@@ -191,14 +205,24 @@ export function App() {
         : Promise.resolve<Dynamics | null>(null),
     ]);
 
+    const rejectedResults = [identificationResult, assessmentResult, dynamicsResult]
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected");
+    const authenticationError = rejectedResults
+      .map((result) => result.reason)
+      .find((reason) => reason instanceof ApiError && reason.status === 401);
+    if (authenticationError) {
+      handleRequestError(authenticationError, "Сессия истекла");
+      setPending(false);
+      return;
+    }
+
     if (identificationResult.status === "fulfilled") setIdentification(identificationResult.value);
     else setIdentification(null);
     if (assessmentResult.status === "fulfilled") setAssessment(assessmentResult.value);
     if (dynamicsResult.status === "fulfilled") setDynamics(dynamicsResult.value);
     else setDynamics(null);
 
-    const failures = [identificationResult, assessmentResult, dynamicsResult]
-      .filter((result) => result.status === "rejected")
+    const failures = rejectedResults
       .map((result) => result.reason instanceof Error ? result.reason.message : "ошибка анализа");
 
     try {
@@ -207,6 +231,11 @@ export function App() {
       setPlants((items) => items.map((item) => item.id === selectedId ? nextHistory.plant : item));
       if (assessmentResult.status === "rejected") setAssessment(restoredAssessment(nextHistory));
     } catch (requestError) {
+      if (requestError instanceof ApiError && requestError.status === 401) {
+        handleRequestError(requestError, "Сессия истекла");
+        setPending(false);
+        return;
+      }
       failures.push(requestError instanceof Error ? requestError.message : "не удалось обновить историю");
     }
     setError(failures.length ? `Наблюдение сохранено, но часть анализа недоступна: ${failures.join("; ")}` : null);

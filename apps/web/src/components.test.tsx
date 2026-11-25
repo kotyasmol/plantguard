@@ -70,9 +70,10 @@ describe("form components", () => {
       createObjectURL: vi.fn(() => "blob:preview"),
       revokeObjectURL: vi.fn(),
     });
-    const { container } = render(
+    const { container, unmount } = render(
       <ObservationComposer plantName="Фикус" pending={false} error={null} onClose={onClose} onSubmit={onSubmit} />,
     );
+    expect(document.body.style.overflow).toBe("hidden");
     const file = new File(["image"], "leaf.jpg", { type: "image/jpeg" });
     fireEvent.change(screen.getByLabelText(/добавьте фотографию листа/i), { target: { files: [file] } });
     fireEvent.change(screen.getByLabelText("Что изменилось?"), { target: { value: "Появился лист" } });
@@ -85,8 +86,12 @@ describe("form components", () => {
     expect(data.has("humidity_pct")).toBe(false);
     expect(data.has("temperature_c")).toBe(false);
 
-    fireEvent.mouseDown(container.querySelector(".modal-backdrop")!);
+    fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalledOnce();
+    fireEvent.mouseDown(container.querySelector(".modal-backdrop")!);
+    expect(onClose).toHaveBeenCalledTimes(2);
+    unmount();
+    expect(document.body.style.overflow).toBe("");
   });
 });
 

@@ -51,6 +51,10 @@ def assert_schema(engine: Engine) -> None:
     if missing:
         raise AssertionError(f"migration did not create: {', '.join(sorted(missing))}")
 
+    user_columns = {column["name"] for column in inspector.get_columns("users")}
+    if "password_hash" not in user_columns:
+        raise AssertionError("users is missing password_hash")
+
     for table, expected_checks in EXPECTED_CHECKS.items():
         checks = {constraint["name"] for constraint in inspector.get_check_constraints(table)}
         if missing_checks := expected_checks - checks:
