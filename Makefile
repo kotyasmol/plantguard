@@ -1,4 +1,4 @@
-.PHONY: bootstrap dataset-audit train-species-model evaluate-visual-model evaluate-text-model evaluate-comparison-model test test-python test-web test-migrations test-streams lint build up down db-upgrade db-downgrade ksql-init smoke
+.PHONY: bootstrap dataset-audit train-species-model evaluate-visual-model evaluate-text-model evaluate-comparison-model test test-python test-web test-coverage test-migrations test-streams lint build up down db-upgrade db-downgrade ksql-init smoke
 
 bootstrap:
 	python3 -m venv .venv
@@ -30,6 +30,10 @@ test-python:
 
 test-web:
 	npm run test --workspace @plantguard/web
+
+test-coverage:
+	.venv/bin/python -m pytest --cov=plantguard_api --cov=plantguard_mining --cov-report=term-missing --cov-fail-under=85
+	npm run test:coverage --workspace @plantguard/web
 
 test-migrations:
 	@trap 'docker compose -p plantguard-migrations --profile tests down --volumes --remove-orphans >/dev/null' EXIT; \

@@ -11,5 +11,9 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "5.1.1",
+    "vitest": "5.1.1"
   }
 }
