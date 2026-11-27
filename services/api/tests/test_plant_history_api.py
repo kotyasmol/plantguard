@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 from plantguard_api.config import Settings, get_settings
 from plantguard_api.database import Assessment, Base, OutboxEvent, get_session
-from plantguard_api.database.models import EnvironmentReading
+from plantguard_api.database.models import EnvironmentReading, Plant, PlantAlert
 from plantguard_api.dependencies import (
     get_photo_comparator,
     get_photo_link_signer,
@@ -206,6 +208,51 @@ def test_manual_reading_rolls_back_when_enqueue_fails(history_client, reading_en
     with history_client() as session:
         assert session.scalar(select(EnvironmentReading)) is None
         assert session.scalar(select(OutboxEvent)) is None
+
+
+@pytest.fixture
+def alerts_for_two_owners(history_client):
+    with TestClient(app) as client:
+        owner = register(client)
+        other = register(client, "second@example.com")
+        alerts = []
+        for day, headers in enumerate([owner, owner, other], start=1):
+            plant = client.post("/api/v1/plants", headers=headers, json={"nickname": "Fern"})
+            with history_client() as session:
+                alert = PlantAlert(
+                    plant_id=UUID(plant.json()["id"]), event_id=str(uuid4()),
+                    occurred_at=datetime(2026, 1, day, tzinfo=timezone.utc),
+                    severity="warning", alert_code="humidity_too_low",
+                )
+                session.add(alert)
+                session.commit()
+                alerts.append(alert.id)
+        yield client, owner, other, alerts
+
+
+def test_alert_list_is_scoped_to_owner_and_ordered(alerts_for_two_owners):
+    client, owner, other, (older, newer, foreign) = alerts_for_two_owners
+    url = "/api/v1/alerts"
+    assert client.get(url).status_code == 401
+    result = client.get(url, headers=owner)
+    assert result.status_code == 200
+    assert [item["id"] for item in result.json()] == [str(newer), str(older)]
+    assert [item["id"] for item in client.get(url, headers=other).json()] == [str(foreign)]
+
+
+def test_alerts_deleted_with_plant_and_profile(alerts_for_two_owners, history_client):
+    client, owner, other, (older, newer, foreign) = alerts_for_two_owners
+    with history_client() as session:
+        alert = session.get(PlantAlert, older)
+        session.delete(session.get(Plant, alert.plant_id))
+        session.commit()
+    assert [item["id"] for item in client.get("/api/v1/alerts", headers=owner).json()] == [
+        str(newer)
+    ]
+    assert client.delete("/api/v1/users/me", headers=owner).status_code == 204
+    with history_client() as session:
+        assert session.scalars(select(PlantAlert.id)).all() == [foreign]
+    assert client.get("/api/v1/alerts", headers=other).json()[0]["id"] == str(foreign)
 
 
 def test_plant_history_survives_api_restart(history_client):

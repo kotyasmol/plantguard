@@ -122,6 +122,17 @@ class EnvironmentReadingResult(BaseModel):
     humidity_pct: Optional[float]
 
 
+class PlantAlertResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    plant_id: UUID
+    alert_code: str
+    severity: str
+    occurred_at: datetime
+    acknowledged_at: Optional[datetime]
+
+
 class CareEventCreate(BaseModel):
     action_type: CareActionType
     notes: Optional[str] = Field(default=None, max_length=2000)

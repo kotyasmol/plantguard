@@ -7,9 +7,9 @@
 | 2026-11-27 | Добавлена история последних показаний по растению с ограничением числа записей. | `feat: expose recent environment readings` | `plant_history.py`, `test_plant_history_api.py` |
 | 2026-11-27 | Добавлен обработчик событий ksqlDB с сохранением алертов и защитой от повторной доставки. | `feat: consume plant alerts from Kafka` | `alert_consumer.py`, `test_alert_consumer.py` |
 | 2026-11-27 | Подключён процесс обработки алертов в обоих окружениях Compose. | `build: run the alert consumer in compose` | `compose.yaml`, `deploy/compose.production.yaml` |
+| 2026-11-27 | Добавлен список уведомлений владельца с фильтром непрочитанных. | `feat: list plant alerts` | `alerts.py`, `main.py`, `schemas.py`, `test_plant_history_api.py` |
 
 ## В планах
 
-- Список уведомлений и отметка о прочтении.
 - Форма ручного ввода, график и уведомления в веб-интерфейсе.
 - Сквозной тест от HTTP-запроса до уведомления и обновление документации.
