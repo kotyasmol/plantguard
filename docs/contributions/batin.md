@@ -8,6 +8,7 @@
 | 2026-11-27 | Добавлен обработчик событий ksqlDB с сохранением алертов и защитой от повторной доставки. | `feat: consume plant alerts from Kafka` | `alert_consumer.py`, `test_alert_consumer.py` |
 | 2026-11-27 | Подключён процесс обработки алертов в обоих окружениях Compose. | `build: run the alert consumer in compose` | `compose.yaml`, `deploy/compose.production.yaml` |
 | 2026-11-27 | Добавлен список уведомлений владельца с фильтром непрочитанных. | `feat: list plant alerts` | `alerts.py`, `main.py`, `schemas.py`, `test_plant_history_api.py` |
+| 2026-11-27 | Добавлена отметка о прочтении с сохранением времени первого прочтения. | `feat: acknowledge plant alerts` | `alerts.py`, `test_plant_history_api.py` |
 
 ## В планах
 

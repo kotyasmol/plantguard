@@ -240,6 +240,22 @@ def test_alert_list_is_scoped_to_owner_and_ordered(alerts_for_two_owners):
     assert [item["id"] for item in client.get(url, headers=other).json()] == [str(foreign)]
 
 
+def test_acknowledgement_preserves_first_timestamp_and_filters_unread(alerts_for_two_owners):
+    client, owner, other, (older, newer, _) = alerts_for_two_owners
+    url = f"/api/v1/alerts/{newer}/acknowledge"
+    assert client.post(url).status_code == 401
+    assert client.post(url, headers=other).status_code == 404
+    assert client.post(f"/api/v1/alerts/{uuid4()}/acknowledge", headers=owner).status_code == 404
+    first = client.post(url, headers=owner)
+    assert first.status_code == 200
+    assert first.json()["acknowledged_at"]
+    assert client.post(url, headers=owner).json() == first.json()
+    unread = client.get("/api/v1/alerts?unread=true", headers=owner).json()
+    assert [item["id"] for item in unread] == [str(older)]
+    assert unread[0]["acknowledged_at"] is None
+    assert client.get("/api/v1/alerts", headers=owner).json()[0] == first.json()
+
+
 def test_alerts_deleted_with_plant_and_profile(alerts_for_two_owners, history_client):
     client, owner, other, (older, newer, foreign) = alerts_for_two_owners
     with history_client() as session:
