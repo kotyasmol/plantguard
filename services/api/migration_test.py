@@ -18,8 +18,16 @@ EXPECTED_TABLES = {
     "care_events",
     "assessments",
     "outbox_events",
+    "environment_readings",
+    "plant_alerts",
 }
 EXPECTED_CHECKS = {
+    "environment_readings": {
+        "ck_environment_readings_has_measurement",
+        "ck_environment_readings_humidity_range",
+        "ck_environment_readings_temperature_range",
+    },
+    "plant_alerts": {"ck_plant_alerts_alert_code", "ck_plant_alerts_severity"},
     "plants": {"ck_plants_species_status"},
     "observations": {
         "ck_observations_humidity_range",
@@ -105,9 +113,23 @@ def assert_cascade_delete(engine: Engine) -> None:
             text("INSERT INTO care_events (plant_id, action_type) VALUES (:plant_id, 'watered')"),
             {"plant_id": plant_id},
         )
+        connection.execute(
+            text("INSERT INTO environment_readings (plant_id, humidity_pct) VALUES (:plant_id, 8)"),
+            {"plant_id": plant_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO plant_alerts (plant_id, event_id, alert_code, severity, occurred_at) "
+                "VALUES (:plant_id, 'migration:environment', 'humidity_too_low', 'critical', now())"
+            ),
+            {"plant_id": plant_id},
+        )
         connection.execute(text("DELETE FROM plants WHERE id = :id"), {"id": plant_id})
 
-        for table in ("observations", "photos", "care_events", "assessments"):
+        for table in (
+            "observations", "photos", "care_events", "assessments",
+            "environment_readings", "plant_alerts",
+        ):
             remaining = connection.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
             if remaining:
                 raise AssertionError(f"cascade delete left rows in {table}")
@@ -122,6 +144,14 @@ def main() -> None:
     command.check(config)
     assert_cascade_delete(engine)
     print("[ok] migration upgrade and constraints")
+
+    command.downgrade(config, "0004_user_passwords")
+    tables = set(inspect(engine).get_table_names())
+    new_tables = {"environment_readings", "plant_alerts"}
+    if tables & new_tables or (EXPECTED_TABLES - new_tables) - tables:
+        raise AssertionError("migration 0005 did not restore the 0004 schema")
+    command.upgrade(config, "head")
+    assert_schema(engine)
 
     engine.dispose()
     command.downgrade(config, "base")

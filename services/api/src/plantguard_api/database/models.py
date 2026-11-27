@@ -257,6 +257,64 @@ class Assessment(CreatedAtMixin, Base):
     )
 
 
+class EnvironmentReading(CreatedAtMixin, Base):
+    __tablename__ = "environment_readings"
+    __table_args__ = (
+        CheckConstraint(
+            "humidity_pct IS NOT NULL OR temperature_c IS NOT NULL",
+            name="ck_environment_readings_has_measurement",
+        ),
+        CheckConstraint(
+            "humidity_pct BETWEEN 0 AND 100", name="ck_environment_readings_humidity_range"
+        ),
+        CheckConstraint(
+            "temperature_c BETWEEN -50 AND 70",
+            name="ck_environment_readings_temperature_range",
+        ),
+        Index("ix_environment_readings_plant_occurred_at", "plant_id", "occurred_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    plant_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("plants.id", ondelete="CASCADE"), nullable=False
+    )
+    humidity_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
+    temperature_c: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PlantAlert(CreatedAtMixin, Base):
+    __tablename__ = "plant_alerts"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_plant_alerts_event_id"),
+        CheckConstraint(
+            "alert_code IN ('humidity_too_low', 'humidity_too_high', "
+            "'temperature_too_low', 'temperature_too_high')",
+            name="ck_plant_alerts_alert_code",
+        ),
+        CheckConstraint("severity IN ('warning', 'critical')", name="ck_plant_alerts_severity"),
+        Index("ix_plant_alerts_plant_occurred_at", "plant_id", "occurred_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    plant_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("plants.id", ondelete="CASCADE"), nullable=False
+    )
+    event_id: Mapped[str] = mapped_column(Text, nullable=False)
+    alert_code: Mapped[str] = mapped_column(String(24), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    acknowledged_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
 class OutboxEvent(CreatedAtMixin, Base):
     __tablename__ = "outbox_events"
     __table_args__ = (
