@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ServiceStatus(str, Enum):
@@ -96,6 +97,29 @@ class ObservationResult(BaseModel):
     observed_at: datetime
     created_at: datetime
     photos: list[PhotoResult]
+
+
+class EnvironmentReadingCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    humidity_pct: Optional[Decimal] = Field(default=None, ge=0, le=100, decimal_places=2)
+    temperature_c: Optional[Decimal] = Field(default=None, ge=-50, le=70, decimal_places=2)
+
+    @model_validator(mode="after")
+    def require_measurement(self) -> EnvironmentReadingCreate:
+        if self.humidity_pct is None and self.temperature_c is None:
+            raise ValueError("Укажите температуру или влажность")
+        return self
+
+
+class EnvironmentReadingResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    plant_id: UUID
+    occurred_at: datetime
+    temperature_c: Optional[float]
+    humidity_pct: Optional[float]
 
 
 class CareEventCreate(BaseModel):

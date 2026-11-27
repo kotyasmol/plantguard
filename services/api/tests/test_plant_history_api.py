@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 from plantguard_api.config import Settings, get_settings
 from plantguard_api.database import Assessment, Base, OutboxEvent, get_session
+from plantguard_api.database.models import EnvironmentReading
 from plantguard_api.dependencies import (
     get_photo_comparator,
     get_photo_link_signer,
@@ -123,6 +124,59 @@ def history_client(tmp_path: Path):
     yield session_factory
     app.dependency_overrides.clear()
     engine.dispose()
+
+
+@pytest.fixture
+def reading_endpoint(history_client):
+    with TestClient(app) as client:
+        headers = register(client)
+        plant = client.post("/api/v1/plants", headers=headers, json={"nickname": "Aloe"})
+        assert plant.status_code == 201
+        yield client, headers, f"/api/v1/plants/{plant.json()['id']}/environment-readings"
+
+
+@pytest.mark.parametrize("values", [
+    {"humidity_pct": 0}, {"temperature_c": -50}, {"temperature_c": 70, "humidity_pct": 100},
+])
+def test_manual_reading_persists_and_queues_event(history_client, reading_endpoint, values):
+    client, headers, url = reading_endpoint
+    response = client.post(url, headers=headers, json=values)
+    assert response.status_code == 201
+    result = response.json()
+    with history_client() as session:
+        reading = session.scalars(select(EnvironmentReading)).one()
+        queued = session.scalars(select(OutboxEvent)).one()
+        assert str(reading.id) == result["id"] == queued.payload["event_id"]
+        assert str(reading.plant_id) == result["plant_id"] == queued.message_key
+        assert queued.topic == "plant.environment-readings.v1"
+        assert queued.payload["source"] == "manual"
+        for key in ("humidity_pct", "temperature_c"):
+            assert getattr(reading, key) == result[key] == values.get(key)
+            assert (key in queued.payload) == (key in values)
+            assert queued.payload.get(key) == values.get(key)
+
+
+def test_manual_reading_rejects_invalid_values_and_other_owners(history_client, reading_endpoint):
+    client, headers, url = reading_endpoint
+    for values in ({}, {"humidity_pct": None}, {"humidity_pct": 101}, {"temperature_c": -51}):
+        assert client.post(url, headers=headers, json=values).status_code == 422
+    values = {"temperature_c": 18.75}
+    assert client.post(url, json=values).status_code == 401
+    other = register(client, "other@example.com")
+    assert client.post(url, headers=other, json=values).status_code == 404
+    with history_client() as session:
+        assert session.scalar(select(EnvironmentReading)) is None
+        assert session.scalar(select(OutboxEvent)) is None
+
+
+def test_manual_reading_rolls_back_when_enqueue_fails(history_client, reading_endpoint):
+    client, headers, url = reading_endpoint
+    with patch("plantguard_api.plant_history.enqueue_event", side_effect=RuntimeError("outbox")):
+        with pytest.raises(RuntimeError, match="outbox"):
+            client.post(url, headers=headers, json={"humidity_pct": 64.5})
+    with history_client() as session:
+        assert session.scalar(select(EnvironmentReading)) is None
+        assert session.scalar(select(OutboxEvent)) is None
 
 
 def test_plant_history_survives_api_restart(history_client):

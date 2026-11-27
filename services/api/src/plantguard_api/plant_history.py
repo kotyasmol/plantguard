@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Optional
 from uuid import UUID
@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session, selectinload
 from .config import Settings, get_settings
 from .database import Assessment as AssessmentRecord
 from .database import CareEvent, Observation, Photo, Plant, User, get_session
+from .database.models import EnvironmentReading
 from .dependencies import (
     get_explanation_generator,
     get_photo_comparator,
@@ -40,13 +41,15 @@ from .dependencies import (
     get_symptom_extractor,
     get_visual_condition_analyzer,
 )
-from .events import IdentificationCandidate as EventCandidate
 from .events import (
+    EnvironmentReadingEvent,
     build_assessment_event,
     build_care_event,
     build_identification_event,
     build_observation_event,
+    unix_milliseconds,
 )
+from .events import IdentificationCandidate as EventCandidate
 from .outbox import enqueue_event
 from .photo_links import PhotoLinkSigner
 from .photo_storage import PhotoStorage
@@ -56,6 +59,8 @@ from .schemas import (
     CareEventResult,
     DecisionAssessmentResult,
     DecisionEvidenceResult,
+    EnvironmentReadingCreate,
+    EnvironmentReadingResult,
     FindingChangeResult,
     IdentificationResult,
     ObservationDynamicsResult,
@@ -189,6 +194,42 @@ def list_plants(
             .order_by(Plant.updated_at.desc())
         ).all()
     )
+
+
+@router.post(
+    "/{plant_id}/environment-readings",
+    response_model=EnvironmentReadingResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_environment_reading(
+    plant_id: UUID,
+    payload: EnvironmentReadingCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[Session, Depends(get_session)],
+) -> EnvironmentReadingResult:
+    require_plant(session, plant_id, current_user.id)
+    reading = EnvironmentReading(
+        plant_id=plant_id, occurred_at=datetime.now(timezone.utc), **payload.model_dump()
+    )
+    session.add(reading)
+    session.flush()
+    result = EnvironmentReadingResult.model_validate(reading)
+    enqueue_event(
+        session,
+        topic="plant.environment-readings.v1",
+        event=EnvironmentReadingEvent(
+            event_id=str(reading.id),
+            event_type="plant.environment.recorded",
+            schema_version=1,
+            plant_id=plant_id,
+            occurred_at=unix_milliseconds(reading.occurred_at),
+            source="manual",
+            humidity_pct=result.humidity_pct,
+            temperature_c=result.temperature_c,
+        ),
+    )
+    session.commit()
+    return result
 
 
 @router.get("/{plant_id}", response_model=PlantResult)
