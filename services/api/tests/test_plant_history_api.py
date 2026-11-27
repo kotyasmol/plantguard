@@ -169,6 +169,35 @@ def test_manual_reading_rejects_invalid_values_and_other_owners(history_client, 
         assert session.scalar(select(OutboxEvent)) is None
 
 
+def test_reading_history_filters_by_plant_and_limits_newest_first(reading_endpoint):
+    client, headers, url = reading_endpoint
+    assert client.get(url, headers=headers).json() == []
+    other_plant = client.post("/api/v1/plants", headers=headers, json={"nickname": "Mint"})
+    other_url = f"/api/v1/plants/{other_plant.json()['id']}/environment-readings"
+    assert client.post(other_url, headers=headers, json={"humidity_pct": 99}).status_code == 201
+    ids = []
+    for humidity in (42, 55, 68):
+        response = client.post(url, headers=headers, json={"humidity_pct": humidity})
+        assert response.status_code == 201
+        ids.append(response.json()["id"])
+
+    history = client.get(url, headers=headers)
+    assert history.status_code == 200
+    assert [item["id"] for item in history.json()] == ids[::-1]
+    recent = client.get(url, headers=headers, params={"limit": 2})
+    assert recent.json() == history.json()[:2]
+    assert [item["humidity_pct"] for item in recent.json()] == [68, 55]
+
+
+def test_reading_history_requires_owner_and_valid_limit(reading_endpoint):
+    client, headers, url = reading_endpoint
+    assert client.get(url).status_code == 401
+    other = register(client, "another@example.com")
+    assert client.get(url, headers=other).status_code == 404
+    for limit in (0, 101):
+        assert client.get(url, headers=headers, params={"limit": limit}).status_code == 422
+
+
 def test_manual_reading_rolls_back_when_enqueue_fails(history_client, reading_endpoint):
     client, headers, url = reading_endpoint
     with patch("plantguard_api.plant_history.enqueue_event", side_effect=RuntimeError("outbox")):

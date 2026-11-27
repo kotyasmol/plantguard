@@ -6,7 +6,17 @@ from decimal import Decimal
 from typing import Annotated, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from plantguard_mining import (
     SPECIES_CATALOG,
     AssessmentSignals,
@@ -230,6 +240,24 @@ def create_environment_reading(
     )
     session.commit()
     return result
+
+
+@router.get("/{plant_id}/environment-readings", response_model=list[EnvironmentReadingResult])
+def list_environment_readings(
+    plant_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[Session, Depends(get_session)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+) -> list[EnvironmentReadingResult]:
+    """Return the most recent readings, newest first."""
+    require_plant(session, plant_id, current_user.id)
+    readings = session.scalars(
+        select(EnvironmentReading)
+        .where(EnvironmentReading.plant_id == plant_id)
+        .order_by(EnvironmentReading.occurred_at.desc(), EnvironmentReading.id.desc())
+        .limit(limit)
+    )
+    return [EnvironmentReadingResult.model_validate(reading) for reading in readings]
 
 
 @router.get("/{plant_id}", response_model=PlantResult)
