@@ -2,7 +2,7 @@
 
 | Дата | Что сделано | Коммиты | Файлы |
 | --- | --- | --- | --- |
-| 2026-11-27 | Добавлено хранение ручных показаний и алертов, подготовлена обратимая миграция и проверки схемы и каскадов. | `feat: add environment reading and alert storage` (подготовлен) | `database/models.py`, `alembic/versions/0005_environment_alerts.py`, `migration_test.py`, `tests/test_database_models.py` в `services/api`. |
+| 2026-11-27 | Добавлено хранение ручных показаний и алертов, подготовлена обратимая миграция и проверки схемы и каскадов. | `ce8c3ea` — `feat: add environment reading and alert storage` | `database/models.py`, `alembic/versions/0005_environment_alerts.py`, `migration_test.py`, `tests/test_database_models.py` в `services/api`. |
 
 ## В планах
 
