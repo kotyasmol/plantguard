@@ -13,6 +13,8 @@ def test_domain_model_contains_expected_tables():
         "photos",
         "care_events",
         "assessments",
+        "environment_readings",
+        "plant_alerts",
     }
 
 
@@ -29,3 +31,5 @@ def test_dependent_records_are_deleted_with_their_parent():
     assert foreign_keys[("assessments", "observation_id")] == "CASCADE"
     assert foreign_keys[("assessments", "previous_assessment_id")] == "SET NULL"
     assert foreign_keys[("plants", "owner_id")] == "CASCADE"
+    assert foreign_keys[("environment_readings", "plant_id")] == "CASCADE"
+    assert foreign_keys[("plant_alerts", "plant_id")] == "CASCADE"
