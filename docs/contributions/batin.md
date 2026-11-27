@@ -6,6 +6,7 @@
 | 2026-11-27 | Добавлен приём ручных показаний с проверкой владельца и транзакционной записью события в outbox. | `965e3b6` — `feat: accept manual environment readings` | `plant_history.py`, `schemas.py`, `test_plant_history_api.py` |
 | 2026-11-27 | Добавлена история последних показаний по растению с ограничением числа записей. | `feat: expose recent environment readings` | `plant_history.py`, `test_plant_history_api.py` |
 | 2026-11-27 | Добавлен обработчик событий ksqlDB с сохранением алертов и защитой от повторной доставки. | `feat: consume plant alerts from Kafka` | `alert_consumer.py`, `test_alert_consumer.py` |
+| 2026-11-27 | Подключён процесс обработки алертов в обоих окружениях Compose. | `build: run the alert consumer in compose` | `compose.yaml`, `deploy/compose.production.yaml` |
 
 ## В планах
 

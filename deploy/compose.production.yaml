@@ -139,7 +139,7 @@ services:
       start_period: 10s
     networks: [frontend, backend]
 
-  outbox-worker:
+  outbox-worker: &worker
     image: plantguard-app:${PLANTGUARD_IMAGE_TAG:-latest}
     restart: unless-stopped
     read_only: true
@@ -153,6 +153,10 @@ services:
       kafka:
         condition: service_healthy
     networks: [backend]
+
+  alert-consumer:
+    <<: *worker
+    command: ["python", "-m", "plantguard_api.alert_consumer"]
 
   caddy:
     image: caddy:2-alpine

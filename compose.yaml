@@ -114,7 +114,7 @@ services:
       retries: 12
       start_period: 5s
 
-  outbox-worker:
+  outbox-worker: &worker
     image: plantguard-app:latest
     build:
       context: .
@@ -131,6 +131,10 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+
+  alert-consumer:
+    <<: *worker
+    command: ["python", "-m", "plantguard_api.alert_consumer"]
 
   postgres-migrations:
     image: postgres:16-alpine
