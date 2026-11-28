@@ -20,6 +20,7 @@ const plant: Plant = {
 };
 
 const emptyHistory: PlantHistory = { plant, observations: [], care_events: [], assessments: [] };
+const emptySchedule = { watering_days: null, feeding_days: null, watering_due_at: null, feeding_due_at: null };
 
 function observation(id: string, observedAt: string, description: string): Observation {
   return {
@@ -94,6 +95,51 @@ describe("PlantGuard workflow", () => {
     expect(screen.getByText(/фотографии доступны только после входа/i)).toBeVisible();
   });
 
+  it("updates the watering deadline after recording care and lets the owner disable it", async () => {
+    localStorage.setItem("plantguard_access_token", "session");
+    let watered = false;
+    let days: number | null = null;
+    let rejectSave = true;
+    const fetchMock = vi.fn((url: string, options?: RequestInit) => {
+      if (url.endsWith("/alerts")) return json([]);
+      if (url.endsWith("/plants")) return json([plant]);
+      if (url.endsWith("/care-schedule")) {
+        if (options?.method === "PUT") {
+          if (rejectSave) { rejectSave = false; return json({}, false); }
+          days = JSON.parse(String(options.body)).watering_days;
+        }
+        return json({ ...emptySchedule, watering_days: days,
+          watering_due_at: days ? (watered ? "2099-01-01T12:00:00Z" : "2020-01-01T12:00:00Z") : null });
+      }
+      const event = { id: "water", plant_id: plant.id, action_type: "watered", notes: "",
+        created_at: "2026-11-28T12:00:00Z", performed_at: "2026-11-28T12:00:00Z" };
+      if (url.endsWith("/history")) return json({ ...emptyHistory, care_events: watered ? [event] : [] });
+      if (url.endsWith("/care-events")) { watered = true; return json(event); }
+      throw new Error(url);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    const panel = within(await screen.findByRole("region", { name: "Расписание ухода" }));
+    fireEvent.click(await panel.findByRole("button", { name: "Настроить интервалы" }));
+    const input = panel.getByLabelText("Полив, дней");
+    fireEvent.change(input, { target: { value: "366" } });
+    expect(input).toBeInvalid();
+    fireEvent.change(input, { target: { value: "7" } });
+    fireEvent.click(panel.getByText("Сохранить интервалы"));
+    expect(await panel.findByRole("alert")).toHaveTextContent("Не удалось сохранить");
+    expect(input).toHaveValue(7);
+    fireEvent.click(panel.getByText("Сохранить интервалы"));
+    await panel.findByText(/Пора полить/);
+    fireEvent.click(panel.getByRole("button", { name: "Полито" }));
+    expect(await panel.findByText(/Следующий срок/)).toHaveTextContent("2099");
+    expect(fetchMock).toHaveBeenCalledWith(`/api/v1/plants/${plant.id}/care-events`,
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ action_type: "watered", notes: null }) }));
+    fireEvent.click(panel.getByText("Настроить интервалы"));
+    fireEvent.change(panel.getByLabelText("Полив, дней"), { target: { value: "" } });
+    fireEvent.click(panel.getByText("Сохранить интервалы"));
+    await waitFor(() => expect(panel.queryByText("Полито")).toBeNull());
+  });
+
   it("shows the unread count and acknowledges an alert from mobile navigation", async () => {
     localStorage.setItem("plantguard_access_token", "secret-token");
     const alert = {
@@ -104,6 +150,7 @@ describe("PlantGuard workflow", () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
       if (path.endsWith("/alerts")) return json([{ ...alert }]);
+      if (path.endsWith("/care-schedule")) return json(emptySchedule);
       if (path.endsWith("/plants")) return json([plant]);
       if (path.endsWith("/history")) return json(emptyHistory);
       if (path.endsWith("/alerts/alert-1/acknowledge") && init?.method === "POST") {
@@ -336,7 +383,7 @@ describe("PlantGuard workflow", () => {
     expect(screen.getByRole("button", { name: "Сохранить и оценить" })).toBeEnabled();
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(7));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(8));
     expect(await screen.findByText(/заметно пожелтение листа/i)).toBeVisible();
     expect(screen.getAllByRole("button", { name: "Это оно" })).toHaveLength(2);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -357,6 +404,7 @@ describe("PlantGuard workflow", () => {
     const saved = observation("saved", "2026-11-24T12:00:00Z", "Лист поник");
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
+      if (path.endsWith("/care-schedule")) return json(emptySchedule);
       if (path.endsWith("/api/v1/plants") && !init?.method) return json([plant]);
       if (path.endsWith(`/api/v1/plants/${plant.id}/history`)) return json(history);
       if (path.endsWith(`/api/v1/plants/${plant.id}/observations`) && init?.method === "POST") {
@@ -422,7 +470,7 @@ describe("PlantGuard workflow", () => {
       status: 200,
       json: () => Promise.resolve(emptyHistory),
     } as Response);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
 
     expect(screen.getByRole("heading", { name: secondPlant.nickname })).toBeVisible();
     expect(screen.queryByRole("heading", { name: plant.nickname })).not.toBeInTheDocument();

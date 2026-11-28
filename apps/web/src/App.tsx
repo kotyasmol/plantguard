@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertList } from "./AlertList";
+import { CareReminders } from "./CareReminders";
 import { EnvironmentPanel } from "./EnvironmentPanel";
 
 import {
@@ -309,11 +310,13 @@ export function App() {
   }
 
   async function addCare(actionType: string, notes: string) {
-    if (!token || !selectedId) return;
+    const plantId = history?.plant.id;
+    if (!token || !plantId) return;
     setCarePending(true);
     try {
-      await createCareEvent(token, selectedId, actionType, notes);
-      setHistory(await loadHistory(token, selectedId));
+      await createCareEvent(token, plantId, actionType, notes);
+      const updated = await loadHistory(token, plantId);
+      setHistory((current) => current?.plant.id === plantId ? updated : current);
       setError(null);
     } catch (requestError) {
       handleRequestError(requestError, "Не удалось сохранить действие");
@@ -381,6 +384,8 @@ export function App() {
           onCare={addCare}
         >
           <EnvironmentPanel key={history.plant.id} token={token} plantId={history.plant.id} />
+          <CareReminders key={`care-${history.plant.id}`} token={token} plantId={history.plant.id}
+            eventCount={history.care_events.length} pending={carePending} onCare={addCare} />
         </PlantWorkspace>
       ) : null}
       {error && history && !showObservation && <div className="global-error" role="alert">{error}<button onClick={() => setError(null)} aria-label="Закрыть">×</button></div>}

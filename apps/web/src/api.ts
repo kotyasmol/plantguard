@@ -49,6 +49,22 @@ export type CareEvent = {
   created_at: string;
 };
 
+export type CareIntervals = { watering_days: number | null; feeding_days: number | null };
+export type CareSchedule = CareIntervals & {
+  watering_due_at: string | null;
+  feeding_due_at: string | null;
+};
+
+export function loadCareSchedule(token: string, plantId: string): Promise<CareSchedule> {
+  return request(`/api/v1/plants/${plantId}/care-schedule`, {}, token);
+}
+
+export function saveCareIntervals(token: string, plantId: string, values: CareIntervals): Promise<CareSchedule> {
+  return request(`/api/v1/plants/${plantId}/care-schedule`, {
+    method: "PUT", body: JSON.stringify(values),
+  }, token);
+}
+
 export type PlantHistory = {
   plant: Plant;
   observations: Observation[];

@@ -15,7 +15,8 @@
 | 2026-11-28 | Описаны сценарий в карточке растения, четыре маршрута API, хранение и обработка событий. | `docs: document the environment alert workflow` | `README.md`, `docs/api.md`, `docs/architecture.md`, `docs/data-model.md`, `docs/roadmap.md` |
 | 2026-11-28 | Добавлен браузерный сценарий регистрации, двух наблюдений, оценки и динамики с отдельным заданием CI. | `test: cover repeated observations in Chromium` | `e2e/`, `.github/workflows/ci.yml`, `package.json`, `package-lock.json`, `docs/testing.md` |
 | 2026-11-28 | Добавлены интервалы полива и подкормки с расчётом следующего срока по последнему событию ухода. | `feat: calculate care schedules from plant history` | `0006_care_intervals.py`, `models.py`, `schemas.py`, `plant_history.py`, `migration_test.py`, `test_plant_history_api.py`, `docs/api.md` |
+| 2026-11-28 | На карточке растения можно настроить интервалы, увидеть ближайший срок и записать полив или подкормку. | `feat: show care reminders on plant cards` | `App.tsx`, `App.test.tsx`, `CareReminders.tsx`, `api.ts`, `README.md` |
 
 ## В планах
 
-- Настройка интервалов и подсказка о сроке ухода на карточке растения.
+- Проверка сценария ухода на командной демонстрации.
