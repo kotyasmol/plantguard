@@ -13,6 +13,7 @@
 | 2026-11-28 | Добавлены ручной ввод температуры и влажности и график последних показаний в карточке растения. | `feat: record and chart environment readings` | `EnvironmentPanel.tsx`, `EnvironmentPanel.test.tsx`, `App.tsx`, `PlantWorkspace.tsx`, `api.ts`, `styles.css` |
 | 2026-11-28 | Расширена потоковая проверка: отправка показания по HTTP, получение предупреждения и отметка о прочтении. | `test: verify environment alerts end to end` | `Makefile`, `deploy/compose.test-streams.yaml`, `scripts/test_stream_processing.py` |
 | 2026-11-28 | Описаны сценарий в карточке растения, четыре маршрута API, хранение и обработка событий. | `docs: document the environment alert workflow` | `README.md`, `docs/api.md`, `docs/architecture.md`, `docs/data-model.md`, `docs/roadmap.md` |
+| 2026-11-28 | Добавлен браузерный сценарий регистрации, двух наблюдений, оценки и динамики с отдельным заданием CI. | `test: cover repeated observations in Chromium` | `e2e/`, `.github/workflows/ci.yml`, `package.json`, `package-lock.json`, `docs/testing.md` |
 
 ## В планах
 
