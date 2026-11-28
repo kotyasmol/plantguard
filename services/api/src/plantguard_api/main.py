@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from .alerts import router as alerts_router
 from .config import Settings, get_settings
 from .database import get_session
 from .dependencies import get_photo_link_signer, get_photo_storage
@@ -58,6 +59,7 @@ app.add_middleware(ObservabilityMiddleware)
 app.include_router(users_router)
 app.include_router(session_router)
 app.include_router(plant_history_router)
+app.include_router(alerts_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])

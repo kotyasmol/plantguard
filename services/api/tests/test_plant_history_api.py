@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 from plantguard_api.config import Settings, get_settings
 from plantguard_api.database import Assessment, Base, OutboxEvent, get_session
+from plantguard_api.database.models import EnvironmentReading, Plant, PlantAlert
 from plantguard_api.dependencies import (
     get_photo_comparator,
     get_photo_link_signer,
@@ -123,6 +126,149 @@ def history_client(tmp_path: Path):
     yield session_factory
     app.dependency_overrides.clear()
     engine.dispose()
+
+
+@pytest.fixture
+def reading_endpoint(history_client):
+    with TestClient(app) as client:
+        headers = register(client)
+        plant = client.post("/api/v1/plants", headers=headers, json={"nickname": "Aloe"})
+        assert plant.status_code == 201
+        yield client, headers, f"/api/v1/plants/{plant.json()['id']}/environment-readings"
+
+
+@pytest.mark.parametrize("values", [
+    {"humidity_pct": 0}, {"temperature_c": -50}, {"temperature_c": 70, "humidity_pct": 100},
+])
+def test_manual_reading_persists_and_queues_event(history_client, reading_endpoint, values):
+    client, headers, url = reading_endpoint
+    response = client.post(url, headers=headers, json=values)
+    assert response.status_code == 201
+    result = response.json()
+    with history_client() as session:
+        reading = session.scalars(select(EnvironmentReading)).one()
+        queued = session.scalars(select(OutboxEvent)).one()
+        assert str(reading.id) == result["id"] == queued.payload["event_id"]
+        assert str(reading.plant_id) == result["plant_id"] == queued.message_key
+        assert queued.topic == "plant.environment-readings.v1"
+        assert queued.payload["source"] == "manual"
+        for key in ("humidity_pct", "temperature_c"):
+            assert getattr(reading, key) == result[key] == values.get(key)
+            assert (key in queued.payload) == (key in values)
+            assert queued.payload.get(key) == values.get(key)
+
+
+def test_manual_reading_rejects_invalid_values_and_other_owners(history_client, reading_endpoint):
+    client, headers, url = reading_endpoint
+    for values in ({}, {"humidity_pct": None}, {"humidity_pct": 101}, {"temperature_c": -51}):
+        assert client.post(url, headers=headers, json=values).status_code == 422
+    values = {"temperature_c": 18.75}
+    assert client.post(url, json=values).status_code == 401
+    other = register(client, "other@example.com")
+    assert client.post(url, headers=other, json=values).status_code == 404
+    with history_client() as session:
+        assert session.scalar(select(EnvironmentReading)) is None
+        assert session.scalar(select(OutboxEvent)) is None
+
+
+def test_reading_history_filters_by_plant_and_limits_newest_first(reading_endpoint):
+    client, headers, url = reading_endpoint
+    assert client.get(url, headers=headers).json() == []
+    other_plant = client.post("/api/v1/plants", headers=headers, json={"nickname": "Mint"})
+    other_url = f"/api/v1/plants/{other_plant.json()['id']}/environment-readings"
+    assert client.post(other_url, headers=headers, json={"humidity_pct": 99}).status_code == 201
+    ids = []
+    for humidity in (42, 55, 68):
+        response = client.post(url, headers=headers, json={"humidity_pct": humidity})
+        assert response.status_code == 201
+        ids.append(response.json()["id"])
+
+    history = client.get(url, headers=headers)
+    assert history.status_code == 200
+    assert [item["id"] for item in history.json()] == ids[::-1]
+    recent = client.get(url, headers=headers, params={"limit": 2})
+    assert recent.json() == history.json()[:2]
+    assert [item["humidity_pct"] for item in recent.json()] == [68, 55]
+
+
+def test_reading_history_requires_owner_and_valid_limit(reading_endpoint):
+    client, headers, url = reading_endpoint
+    assert client.get(url).status_code == 401
+    other = register(client, "another@example.com")
+    assert client.get(url, headers=other).status_code == 404
+    for limit in (0, 101):
+        assert client.get(url, headers=headers, params={"limit": limit}).status_code == 422
+
+
+def test_manual_reading_rolls_back_when_enqueue_fails(history_client, reading_endpoint):
+    client, headers, url = reading_endpoint
+    with patch("plantguard_api.plant_history.enqueue_event", side_effect=RuntimeError("outbox")):
+        with pytest.raises(RuntimeError, match="outbox"):
+            client.post(url, headers=headers, json={"humidity_pct": 64.5})
+    with history_client() as session:
+        assert session.scalar(select(EnvironmentReading)) is None
+        assert session.scalar(select(OutboxEvent)) is None
+
+
+@pytest.fixture
+def alerts_for_two_owners(history_client):
+    with TestClient(app) as client:
+        owner = register(client)
+        other = register(client, "second@example.com")
+        alerts = []
+        for day, headers in enumerate([owner, owner, other], start=1):
+            plant = client.post("/api/v1/plants", headers=headers, json={"nickname": "Fern"})
+            with history_client() as session:
+                alert = PlantAlert(
+                    plant_id=UUID(plant.json()["id"]), event_id=str(uuid4()),
+                    occurred_at=datetime(2026, 1, day, tzinfo=timezone.utc),
+                    severity="warning", alert_code="humidity_too_low",
+                )
+                session.add(alert)
+                session.commit()
+                alerts.append(alert.id)
+        yield client, owner, other, alerts
+
+
+def test_alert_list_is_scoped_to_owner_and_ordered(alerts_for_two_owners):
+    client, owner, other, (older, newer, foreign) = alerts_for_two_owners
+    url = "/api/v1/alerts"
+    assert client.get(url).status_code == 401
+    result = client.get(url, headers=owner)
+    assert result.status_code == 200
+    assert [item["id"] for item in result.json()] == [str(newer), str(older)]
+    assert [item["id"] for item in client.get(url, headers=other).json()] == [str(foreign)]
+
+
+def test_acknowledgement_preserves_first_timestamp_and_filters_unread(alerts_for_two_owners):
+    client, owner, other, (older, newer, _) = alerts_for_two_owners
+    url = f"/api/v1/alerts/{newer}/acknowledge"
+    assert client.post(url).status_code == 401
+    assert client.post(url, headers=other).status_code == 404
+    assert client.post(f"/api/v1/alerts/{uuid4()}/acknowledge", headers=owner).status_code == 404
+    first = client.post(url, headers=owner)
+    assert first.status_code == 200
+    assert first.json()["acknowledged_at"]
+    assert client.post(url, headers=owner).json() == first.json()
+    unread = client.get("/api/v1/alerts?unread=true", headers=owner).json()
+    assert [item["id"] for item in unread] == [str(older)]
+    assert unread[0]["acknowledged_at"] is None
+    assert client.get("/api/v1/alerts", headers=owner).json()[0] == first.json()
+
+
+def test_alerts_deleted_with_plant_and_profile(alerts_for_two_owners, history_client):
+    client, owner, other, (older, newer, foreign) = alerts_for_two_owners
+    with history_client() as session:
+        alert = session.get(PlantAlert, older)
+        session.delete(session.get(Plant, alert.plant_id))
+        session.commit()
+    assert [item["id"] for item in client.get("/api/v1/alerts", headers=owner).json()] == [
+        str(newer)
+    ]
+    assert client.delete("/api/v1/users/me", headers=owner).status_code == 204
+    with history_client() as session:
+        assert session.scalars(select(PlantAlert.id)).all() == [foreign]
+    assert client.get("/api/v1/alerts", headers=other).json()[0]["id"] == str(foreign)
 
 
 def test_plant_history_survives_api_restart(history_client):
