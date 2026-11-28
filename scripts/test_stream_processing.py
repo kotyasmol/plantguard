@@ -8,6 +8,7 @@ import time
 from typing import Optional
 from uuid import uuid4
 
+import httpx
 from kafka import KafkaConsumer, KafkaProducer
 
 BOOTSTRAP_SERVERS = "kafka:29092"
@@ -88,6 +89,38 @@ def wait_for_results(plant_id: str) -> tuple[dict[str, object], list[dict[str, o
     )
 
 
+def check_alert_api() -> None:
+    with httpx.Client(base_url="http://api:8000/api/v1/", timeout=5) as client:
+        user = client.post("users", json={
+            "email": f"streams-{uuid4().hex}@example.com",
+            "display_name": "Stream test",
+            "password": uuid4().hex,
+        }).raise_for_status().json()
+        client.headers["Authorization"] = f"Bearer {user['access_token']}"
+        plant = client.post("plants", json={"nickname": "Stream test"}).raise_for_status().json()
+        plant_id = plant["id"]
+        reading = client.post(
+            f"plants/{plant_id}/environment-readings", json={"humidity_pct": 8}
+        ).raise_for_status().json()
+        deadline = time.monotonic() + TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            alerts = client.get("alerts", params={"unread": "true"}).raise_for_status().json()
+            if alerts:
+                break
+            time.sleep(1)
+        else:
+            raise AssertionError(f"no alert for plant {plant_id}, reading {reading['id']}")
+        assert len(alerts) == 1, alerts
+        alert = alerts[0]
+        assert alert["plant_id"] == plant_id, alert
+        assert (alert["alert_code"], alert["severity"]) == ("humidity_too_low", "critical"), alert
+        acknowledged = client.post(f"alerts/{alert['id']}/acknowledge").raise_for_status().json()
+        assert acknowledged["acknowledged_at"], acknowledged
+        assert client.get("alerts", params={"unread": "true"}).raise_for_status().json() == []
+        client.delete("users/me").raise_for_status()
+        print("[ok] manual reading produced an alert that the owner could acknowledge")
+
+
 def main() -> None:
     plant_id = str(uuid4())
     produce_scenario(plant_id)
@@ -102,6 +135,7 @@ def main() -> None:
     print("[ok] duplicate event counted once")
     print("[ok] late event assigned to its event-time window")
     print("[ok] late event produced the expected alert")
+    check_alert_api()
 
 
 if __name__ == "__main__":

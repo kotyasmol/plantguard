@@ -1,6 +1,19 @@
-# Test-only override: Kafka and ksqlDB communicate inside the Compose network.
+# All stream test clients communicate inside the Compose network.
 # Host ports are intentionally removed so the suite can run beside the local stack.
 services:
+  api:
+    image: plantguard-stream-test:local
+    ports: !reset []
+
+  outbox-worker:
+    image: plantguard-stream-test:local
+
+  alert-consumer:
+    image: plantguard-stream-test:local
+
+  postgres:
+    ports: !reset []
+
   kafka:
     ports: !reset []
 

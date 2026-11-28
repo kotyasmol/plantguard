@@ -11,7 +11,8 @@
 | 2026-11-27 | Добавлена отметка о прочтении с сохранением времени первого прочтения. | `feat: acknowledge plant alerts` | `alerts.py`, `test_plant_history_api.py` |
 | 2026-11-28 | Добавлены счётчик непрочитанных, список уведомлений и отметка о прочтении в веб-интерфейсе. | `feat: show and acknowledge plant alerts` | `App.tsx`, `Sidebar.tsx`, `AlertList.tsx`, `api.ts`, `styles.css`, `App.test.tsx` |
 | 2026-11-28 | Добавлены ручной ввод температуры и влажности и график последних показаний в карточке растения. | `feat: record and chart environment readings` | `EnvironmentPanel.tsx`, `EnvironmentPanel.test.tsx`, `App.tsx`, `PlantWorkspace.tsx`, `api.ts`, `styles.css` |
+| 2026-11-28 | Расширена потоковая проверка: отправка показания по HTTP, получение предупреждения и отметка о прочтении. | `test: verify environment alerts end to end` | `Makefile`, `deploy/compose.test-streams.yaml`, `scripts/test_stream_processing.py` |
 
 ## В планах
 
-- Сквозной тест от HTTP-запроса до уведомления и обновление документации.
+- Обновление документации по показаниям и уведомлениям.

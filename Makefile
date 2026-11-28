@@ -43,10 +43,12 @@ test-streams:
 	@set -eu; \
 		compose='docker compose -p plantguard-streams -f compose.yaml -f deploy/compose.test-streams.yaml'; \
 		trap "$$compose down --volumes --remove-orphans >/dev/null" EXIT; \
-		$$compose up --detach --wait kafka ksqldb; \
+		$$compose up --detach --wait kafka ksqldb postgres; \
 		$$compose --profile tools run --rm ksqldb-init; \
 		$$compose run --build --rm --no-deps api \
-			python /workspace/scripts/test_stream_processing.py
+			alembic -c /workspace/services/api/alembic.ini upgrade head; \
+		$$compose up --no-build --detach --wait api outbox-worker alert-consumer; \
+		$$compose exec -T api python /workspace/scripts/test_stream_processing.py
 
 lint:
 	.venv/bin/python -m ruff check services tests scripts
