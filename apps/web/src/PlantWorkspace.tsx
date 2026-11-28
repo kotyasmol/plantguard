@@ -4,8 +4,10 @@ import { Assessment, Dynamics, PlantHistory } from "./api";
 import { AssessmentPanel } from "./AssessmentPanel";
 import { CameraIcon, DropletIcon, PlusIcon, ThermometerIcon } from "./icons";
 import { Timeline } from "./Timeline";
+import type { ReactNode } from "react";
 
 type Props = {
+  children?: ReactNode;
   history: PlantHistory;
   assessment: Assessment | null;
   dynamics: Dynamics | null;
@@ -25,6 +27,7 @@ const trendCopy = {
 };
 
 export function PlantWorkspace({
+  children,
   history,
   assessment,
   dynamics,
@@ -86,6 +89,7 @@ export function PlantWorkspace({
             <div><ThermometerIcon /><span><strong>{latest?.temperature_c ?? "—"}{latest?.temperature_c != null && "°"}</strong> температура</span></div>
             {dynamics && <div className={`trend trend-${dynamics.trend}`}><span><strong>Динамика</strong>{trendCopy[dynamics.trend]}</span></div>}
           </div>
+          {children}
           <Timeline observations={history.observations} careEvents={history.care_events} />
         </div>
 

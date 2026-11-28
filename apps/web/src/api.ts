@@ -184,6 +184,27 @@ export function listAlerts(token: string): Promise<PlantAlert[]> {
   return request("/api/v1/alerts", {}, token);
 }
 
+export type EnvironmentReading = {
+  id: string;
+  plant_id: string;
+  occurred_at: string;
+  humidity_pct: number | null;
+  temperature_c: number | null;
+};
+
+export function listReadings(token: string, plantId: string): Promise<EnvironmentReading[]> {
+  return request(`/api/v1/plants/${plantId}/environment-readings`, {}, token);
+}
+
+export function addReading(token: string, plantId: string, values: {
+  temperature_c?: number;
+  humidity_pct?: number;
+}): Promise<EnvironmentReading> {
+  return request(`/api/v1/plants/${plantId}/environment-readings`, {
+    method: "POST", body: JSON.stringify(values),
+  }, token);
+}
+
 export function acknowledgeAlert(token: string, id: string): Promise<PlantAlert> {
   return request(`/api/v1/alerts/${id}/acknowledge`, { method: "POST" }, token);
 }

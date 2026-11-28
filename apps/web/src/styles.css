@@ -89,6 +89,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .alert-list { display: grid; gap: 1rem; padding: 0; list-style: none; }
 .alert-list li { display: grid; justify-items: start; gap: .5rem; padding: 1rem 0; border-top: 1px solid var(--line); }
 .alert-list time { font-size: .85rem; }
+.reading-panel { margin: 1rem 0; padding: 1.2rem; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.reading-panel summary { color: var(--ivory); cursor: pointer; font-weight: 600; }
+.reading-panel form { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin: 1.2rem 0; }
+.reading-panel form .field { flex: 1 1 9rem; min-width: 0; }
+.reading-chart { margin: 1rem 0 0; color: var(--mint); }
+.reading-chart svg { display: block; width: 100%; height: 110px; }
+.reading-chart div { display: flex; justify-content: space-between; gap: 1rem; font-size: .8rem; }
 .mobile-nav:has(.nav-item) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .mobile-nav .nav-item { min-width: 0; padding: 0; }
 

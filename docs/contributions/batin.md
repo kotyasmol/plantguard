@@ -10,8 +10,8 @@
 | 2026-11-27 | Добавлен список уведомлений владельца с фильтром непрочитанных. | `feat: list plant alerts` | `alerts.py`, `main.py`, `schemas.py`, `test_plant_history_api.py` |
 | 2026-11-27 | Добавлена отметка о прочтении с сохранением времени первого прочтения. | `feat: acknowledge plant alerts` | `alerts.py`, `test_plant_history_api.py` |
 | 2026-11-28 | Добавлены счётчик непрочитанных, список уведомлений и отметка о прочтении в веб-интерфейсе. | `feat: show and acknowledge plant alerts` | `App.tsx`, `Sidebar.tsx`, `AlertList.tsx`, `api.ts`, `styles.css`, `App.test.tsx` |
+| 2026-11-28 | Добавлены ручной ввод температуры и влажности и график последних показаний в карточке растения. | `feat: record and chart environment readings` | `EnvironmentPanel.tsx`, `EnvironmentPanel.test.tsx`, `App.tsx`, `PlantWorkspace.tsx`, `api.ts`, `styles.css` |
 
 ## В планах
 
-- Форма ручного ввода и график показаний в веб-интерфейсе.
 - Сквозной тест от HTTP-запроса до уведомления и обновление документации.

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertList } from "./AlertList";
+import { EnvironmentPanel } from "./EnvironmentPanel";
 
 import {
   Assessment,
@@ -378,7 +379,9 @@ export function App() {
           onAddObservation={() => setShowObservation(true)}
           onConfirm={confirm}
           onCare={addCare}
-        />
+        >
+          <EnvironmentPanel key={history.plant.id} token={token} plantId={history.plant.id} />
+        </PlantWorkspace>
       ) : null}
       {error && history && !showObservation && <div className="global-error" role="alert">{error}<button onClick={() => setError(null)} aria-label="Закрыть">×</button></div>}
       {showObservation && history && (
