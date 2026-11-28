@@ -171,6 +171,23 @@ export function listPlants(token: string): Promise<Plant[]> {
   return request("/api/v1/plants", {}, token);
 }
 
+export type PlantAlert = {
+  id: string;
+  plant_id: string;
+  alert_code: "humidity_too_low" | "humidity_too_high" | "temperature_too_low" | "temperature_too_high";
+  severity: "warning" | "critical";
+  occurred_at: string;
+  acknowledged_at: string | null;
+};
+
+export function listAlerts(token: string): Promise<PlantAlert[]> {
+  return request("/api/v1/alerts", {}, token);
+}
+
+export function acknowledgeAlert(token: string, id: string): Promise<PlantAlert> {
+  return request(`/api/v1/alerts/${id}/acknowledge`, { method: "POST" }, token);
+}
+
 export function createPlant(token: string, nickname: string): Promise<Plant> {
   return request(
     "/api/v1/plants",

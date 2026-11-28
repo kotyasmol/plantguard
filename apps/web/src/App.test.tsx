@@ -94,6 +94,40 @@ describe("PlantGuard workflow", () => {
     expect(screen.getByText(/фотографии доступны только после входа/i)).toBeVisible();
   });
 
+  it("shows the unread count and acknowledges an alert from mobile navigation", async () => {
+    localStorage.setItem("plantguard_access_token", "secret-token");
+    const alert = {
+      id: "alert-1", plant_id: plant.id, alert_code: "humidity_too_low", severity: "critical",
+      occurred_at: "2026-11-27T09:00:00Z", acknowledged_at: null as string | null,
+    };
+    let fail = true;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path.endsWith("/alerts")) return json([{ ...alert }]);
+      if (path.endsWith("/plants")) return json([plant]);
+      if (path.endsWith("/history")) return json(emptyHistory);
+      if (path.endsWith("/alerts/alert-1/acknowledge") && init?.method === "POST") {
+        if (fail) { fail = false; return json({}, false); }
+        alert.acknowledged_at = "2026-11-28T10:00:00Z";
+        return json({ ...alert });
+      }
+      throw new Error(path);
+    }));
+    render(<App />);
+    const mobile = within(screen.getByRole("navigation", { name: "Мобильная навигация" }));
+    fireEvent.click(await mobile.findByRole("button", { name: /Уведомления.*1/ }));
+    expect(await screen.findByText("Низкая влажность")).toBeVisible();
+    const read = screen.getByRole("button", { name: "Отметить прочитанным" });
+    await waitFor(() => expect(read).toBeEnabled());
+    fireEvent.click(read);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Не удалось отметить");
+    fireEvent.click(read);
+    expect(await screen.findByText("Прочитано")).toBeVisible();
+    expect(mobile.getByRole("button", { name: "Уведомления" })).toBeVisible();
+    fireEvent.click(mobile.getByRole("button", { name: "Главная" }));
+    expect(await screen.findByRole("heading", { name: plant.nickname })).toBeVisible();
+  });
+
   it("registers a profile and offers to create the first plant", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const path = String(input);
@@ -302,7 +336,7 @@ describe("PlantGuard workflow", () => {
     expect(screen.getByRole("button", { name: "Сохранить и оценить" })).toBeEnabled();
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(7));
     expect(await screen.findByText(/заметно пожелтение листа/i)).toBeVisible();
     expect(screen.getAllByRole("button", { name: "Это оно" })).toHaveLength(2);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -388,7 +422,7 @@ describe("PlantGuard workflow", () => {
       status: 200,
       json: () => Promise.resolve(emptyHistory),
     } as Response);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
 
     expect(screen.getByRole("heading", { name: secondPlant.nickname })).toBeVisible();
     expect(screen.queryByRole("heading", { name: plant.nickname })).not.toBeInTheDocument();

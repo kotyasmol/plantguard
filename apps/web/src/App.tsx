@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AlertList } from "./AlertList";
 
 import {
   Assessment,
@@ -7,6 +8,9 @@ import {
   Identification,
   Plant,
   PlantHistory,
+  PlantAlert,
+  listAlerts,
+  acknowledgeAlert,
   SpeciesCandidate,
   assessObservation,
   confirmSpecies,
@@ -21,7 +25,7 @@ import {
   registerUser,
 } from "./api";
 import { CreatePlant } from "./CreatePlant";
-import { LeafMark } from "./icons";
+import { LeafMark, WarningIcon } from "./icons";
 import { ObservationComposer } from "./ObservationComposer";
 import { Onboarding } from "./Onboarding";
 import { PlantWorkspace } from "./PlantWorkspace";
@@ -70,6 +74,50 @@ export function App() {
   const [showObservation, setShowObservation] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [carePending, setCarePending] = useState(false);
+  const [alerts, setAlerts] = useState<PlantAlert[]>([]);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
+  const [readingAlert, setReadingAlert] = useState<string | null>(null);
+  const [alertsRevision, refreshAlerts] = useState(0);
+  const currentSession = useRef(token);
+
+  useEffect(() => {
+    currentSession.current = token;
+    if (!token) return;
+    let active = true;
+    setAlertsLoading(true);
+    setAlertsError(null);
+    listAlerts(token).then((items) => {
+      if (active) setAlerts(items);
+    }).catch((reason) => {
+      if (!active) return;
+      if (reason instanceof ApiError && reason.status === 401) handleRequestError(reason, "");
+      else setAlertsError("Не удалось загрузить уведомления.");
+    }).finally(() => {
+      if (active) setAlertsLoading(false);
+    });
+    return () => { active = false; };
+  }, [token, alertsRevision]);
+
+  async function markAlertRead(id: string) {
+    if (!token) return;
+    setReadingAlert(id);
+    setAlertsError(null);
+    try {
+      const updated = await acknowledgeAlert(token, id);
+      if (currentSession.current === token) {
+        setAlerts((items) => items.map((item) => item.id === id ? updated : item));
+        refreshAlerts((value) => value + 1);
+      }
+    } catch (reason) {
+      if (currentSession.current !== token) return;
+      if (reason instanceof ApiError && reason.status === 401) handleRequestError(reason, "");
+      else setAlertsError("Не удалось отметить уведомление прочитанным.");
+    } finally {
+      if (currentSession.current === token) setReadingAlert(null);
+    }
+  }
 
   function handleRequestError(requestError: unknown, fallback: string) {
     if (requestError instanceof ApiError && requestError.status === 401) {
@@ -177,6 +225,7 @@ export function App() {
   }
 
   function selectPlant(plantId: string) {
+    setAlertsOpen(false);
     setSelectedId(plantId);
     localStorage.setItem(PLANT_KEY, plantId);
     setShowCreatePlant(false);
@@ -273,6 +322,11 @@ export function App() {
   }
 
   function logout() {
+    currentSession.current = null;
+    setAlerts([]);
+    setAlertsOpen(false);
+    setAlertsError(null);
+    setReadingAlert(null);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(PLANT_KEY);
     setToken(null);
@@ -285,17 +339,31 @@ export function App() {
 
   if (!token) return <Onboarding pending={pending} error={error} onRegister={register} onLogin={login} />;
 
+  const unread = alerts.filter((item) => !item.acknowledged_at).length;
+  const alertsButton = (
+    <button className={alertsOpen ? "nav-item active" : "nav-item"} aria-pressed={alertsOpen}
+      onClick={() => { setAlertsOpen(true); refreshAlerts((value) => value + 1); }}>
+      <WarningIcon /><span>Уведомления{unread > 0 && <b className="alert-count"> {unread}</b>}</span>
+    </button>
+  );
+  function openCreatePlant() { setAlertsOpen(false); setShowCreatePlant(true); }
+
   return (
     <div className="app-shell">
       <Sidebar
         plants={plants}
         selectedId={selectedId}
         onSelect={selectPlant}
-        onAddPlant={() => setShowCreatePlant(true)}
+        onAddPlant={openCreatePlant}
+        onHome={() => setAlertsOpen(false)}
+        alertsOpen={alertsOpen}
         onAddObservation={() => selectedId && setShowObservation(true)}
         onLogout={logout}
-      />
-      {loading && !history && !showCreatePlant ? (
+      >{alertsButton}</Sidebar>
+      {alertsOpen ? (
+        <AlertList alerts={alerts} plants={plants} loading={alertsLoading} error={alertsError}
+          pending={readingAlert} onRead={markAlertRead} onRetry={() => refreshAlerts((value) => value + 1)} />
+      ) : loading && !history && !showCreatePlant ? (
         <main className="loading-stage"><LeafMark /><span>Загружаем пространство…</span></main>
       ) : showCreatePlant || plants.length === 0 ? (
         <CreatePlant hasPlants={plants.length > 0} pending={pending} error={error} onCreate={addPlant} onCancel={() => setShowCreatePlant(false)} />
@@ -322,7 +390,8 @@ export function App() {
           onSubmit={addObservation}
         />
       )}
-      <MobileNav onAddPlant={() => setShowCreatePlant(true)} onAddObservation={() => selectedId && setShowObservation(true)} />
+      <MobileNav alertsOpen={alertsOpen} onHome={() => setAlertsOpen(false)} onAddPlant={openCreatePlant}
+        onAddObservation={() => selectedId && setShowObservation(true)}>{alertsButton}</MobileNav>
     </div>
   );
 }

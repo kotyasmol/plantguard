@@ -85,6 +85,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .plant-nav-item.selected { color: var(--mint); background: rgba(198, 231, 190, .09); }
 .logout { margin-top: auto; }
 .mobile-nav { display: none; }
+.alert-count { display: inline-block; margin-left: .35em; padding: 0 .45em; border-radius: 1em; color: var(--forest-950); background: var(--mint); }
+.alert-list { display: grid; gap: 1rem; padding: 0; list-style: none; }
+.alert-list li { display: grid; justify-items: start; gap: .5rem; padding: 1rem 0; border-top: 1px solid var(--line); }
+.alert-list time { font-size: .85rem; }
+.mobile-nav:has(.nav-item) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mobile-nav .nav-item { min-width: 0; padding: 0; }
 
 .loading-stage, .empty-stage { display: grid; min-height: 100vh; margin-left: 238px; place-items: center; padding: 40px; background: radial-gradient(circle at 50% 0, #2e4034, var(--forest-950) 55%); }
 .loading-stage { align-content: center; gap: 16px; color: rgba(242, 242, 238, .55); }
