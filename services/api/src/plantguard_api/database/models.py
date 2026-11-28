@@ -74,6 +74,8 @@ class Plant(CreatedAtMixin, Base):
             name="ck_plants_species_status",
         ),
         Index("ix_plants_owner_id", "owner_id"),
+        CheckConstraint("watering_days BETWEEN 1 AND 365", name="ck_plants_watering_days"),
+        CheckConstraint("feeding_days BETWEEN 1 AND 365", name="ck_plants_feeding_days"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -86,6 +88,8 @@ class Plant(CreatedAtMixin, Base):
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
+    watering_days: Mapped[Optional[int]] = mapped_column(Integer)
+    feeding_days: Mapped[Optional[int]] = mapped_column(Integer)
     species_scientific_name: Mapped[Optional[str]] = mapped_column(String(160))
     species_common_name: Mapped[Optional[str]] = mapped_column(String(160))
     species_status: Mapped[str] = mapped_column(

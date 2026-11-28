@@ -28,7 +28,7 @@ EXPECTED_CHECKS = {
         "ck_environment_readings_temperature_range",
     },
     "plant_alerts": {"ck_plant_alerts_alert_code", "ck_plant_alerts_severity"},
-    "plants": {"ck_plants_species_status"},
+    "plants": {"ck_plants_species_status", "ck_plants_watering_days", "ck_plants_feeding_days"},
     "observations": {
         "ck_observations_humidity_range",
         "ck_observations_temperature_range",
@@ -145,6 +145,10 @@ def main() -> None:
     assert_cascade_delete(engine)
     print("[ok] migration upgrade and constraints")
 
+    command.downgrade(config, "0005_environment_alerts")
+    columns = {column["name"] for column in inspect(engine).get_columns("plants")}
+    if {"watering_days", "feeding_days"} & columns:
+        raise AssertionError("migration 0006 did not remove care intervals")
     command.downgrade(config, "0004_user_passwords")
     tables = set(inspect(engine).get_table_names())
     new_tables = {"environment_readings", "plant_alerts"}

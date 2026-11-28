@@ -14,7 +14,8 @@
 | 2026-11-28 | Расширена потоковая проверка: отправка показания по HTTP, получение предупреждения и отметка о прочтении. | `test: verify environment alerts end to end` | `Makefile`, `deploy/compose.test-streams.yaml`, `scripts/test_stream_processing.py` |
 | 2026-11-28 | Описаны сценарий в карточке растения, четыре маршрута API, хранение и обработка событий. | `docs: document the environment alert workflow` | `README.md`, `docs/api.md`, `docs/architecture.md`, `docs/data-model.md`, `docs/roadmap.md` |
 | 2026-11-28 | Добавлен браузерный сценарий регистрации, двух наблюдений, оценки и динамики с отдельным заданием CI. | `test: cover repeated observations in Chromium` | `e2e/`, `.github/workflows/ci.yml`, `package.json`, `package-lock.json`, `docs/testing.md` |
+| 2026-11-28 | Добавлены интервалы полива и подкормки с расчётом следующего срока по последнему событию ухода. | `feat: calculate care schedules from plant history` | `0006_care_intervals.py`, `models.py`, `schemas.py`, `plant_history.py`, `migration_test.py`, `test_plant_history_api.py`, `docs/api.md` |
 
 ## В планах
 
-- Проверка пользовательского сценария при командной демонстрации.
+- Настройка интервалов и подсказка о сроке ухода на карточке растения.

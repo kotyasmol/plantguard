@@ -271,6 +271,46 @@ def test_alerts_deleted_with_plant_and_profile(alerts_for_two_owners, history_cl
     assert client.get("/api/v1/alerts", headers=other).json()[0]["id"] == str(foreign)
 
 
+def test_care_schedule_follows_latest_action_and_can_be_disabled(reading_endpoint):
+    client, headers, reading_url = reading_endpoint
+    plant_url = reading_url.rsplit("/", 1)[0]
+    url = f"{plant_url}/care-schedule"
+    initial = client.get(url, headers=headers).json()
+    assert initial == dict.fromkeys(("watering_days", "feeding_days", "watering_due_at",
+                                     "feeding_due_at"))
+    intervals = {"watering_days": 7, "feeding_days": 30}
+    result = client.put(url, headers=headers, json=intervals)
+    assert result.status_code == 200
+    assert result.json()["watering_due_at"] is None
+    for action, day in [("watered", 15), ("watered", 3), ("fertilized", 1), ("moved", 20)]:
+        event = {"action_type": action, "performed_at": f"2026-11-{day:02d}T12:00:00Z"}
+        saved = client.post(f"{plant_url}/care-events", headers=headers, json=event)
+        assert saved.status_code == 201
+    schedule = client.get(url, headers=headers).json()
+    assert schedule == {
+        **intervals, "watering_due_at": "2026-11-22T12:00:00Z",
+        "feeding_due_at": "2026-12-01T12:00:00Z",
+    }
+    intervals["watering_days"] = None
+    changed = client.put(url, headers=headers, json=intervals).json()
+    assert changed["watering_due_at"] is None
+    assert changed["feeding_due_at"] == schedule["feeding_due_at"]
+
+
+def test_care_schedule_enforces_owner_and_intervals(reading_endpoint):
+    client, headers, reading_url = reading_endpoint
+    url = reading_url.rsplit("/", 1)[0] + "/care-schedule"
+    other = register(client, "other-schedule@example.com")
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=other).status_code == 404
+    values = {"watering_days": 7, "feeding_days": 365}
+    assert client.put(url, headers=other, json=values).status_code == 404
+    for invalid in (0, 366, 1.5, True):
+        response = client.put(url, headers=headers, json={**values, "watering_days": invalid})
+        assert response.status_code == 422
+    assert client.get(url, headers=headers).json()["watering_days"] is None
+
+
 def test_plant_history_survives_api_restart(history_client):
     with TestClient(app) as client:
         headers = register(client)

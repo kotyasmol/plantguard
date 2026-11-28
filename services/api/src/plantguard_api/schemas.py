@@ -133,6 +133,18 @@ class PlantAlertResult(BaseModel):
     acknowledged_at: Optional[datetime]
 
 
+class CareIntervals(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    watering_days: Optional[int] = Field(ge=1, le=365, strict=True)
+    feeding_days: Optional[int] = Field(ge=1, le=365, strict=True)
+
+
+class CareSchedule(CareIntervals):
+    watering_due_at: Optional[datetime]
+    feeding_due_at: Optional[datetime]
+
+
 class CareEventCreate(BaseModel):
     action_type: CareActionType
     notes: Optional[str] = Field(default=None, max_length=2000)

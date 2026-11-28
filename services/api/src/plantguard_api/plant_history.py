@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated, Optional
 from uuid import UUID
@@ -35,7 +35,7 @@ from plantguard_mining.ports import (
     SymptomExtractor,
     VisualConditionAnalyzer,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from .config import Settings, get_settings
@@ -67,6 +67,8 @@ from .photo_validation import PhotoValidationError, validate_photo_upload
 from .schemas import (
     CareEventCreate,
     CareEventResult,
+    CareIntervals,
+    CareSchedule,
     DecisionAssessmentResult,
     DecisionEvidenceResult,
     EnvironmentReadingCreate,
@@ -258,6 +260,59 @@ def list_environment_readings(
         .limit(limit)
     )
     return [EnvironmentReadingResult.model_validate(reading) for reading in readings]
+
+
+def care_schedule(plant: Plant, session: Session) -> CareSchedule:
+    rows = session.execute(
+        select(CareEvent.action_type, func.max(CareEvent.performed_at))
+        .where(CareEvent.plant_id == plant.id, CareEvent.action_type.in_(("watered", "fertilized")))
+        .group_by(CareEvent.action_type)
+    )
+    last_events = dict(rows.all())
+
+    def due_at(action: str, days: Optional[int]) -> Optional[datetime]:
+        last = last_events.get(action)
+        if days is None or last is None:
+            return None
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        return last + timedelta(days=days)
+
+    return CareSchedule(
+        watering_days=plant.watering_days,
+        feeding_days=plant.feeding_days,
+        watering_due_at=due_at("watered", plant.watering_days),
+        feeding_due_at=due_at("fertilized", plant.feeding_days),
+    )
+
+
+@router.get("/{plant_id}/care-schedule", response_model=CareSchedule)
+def get_care_schedule(
+    plant_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[Session, Depends(get_session)],
+) -> CareSchedule:
+    return care_schedule(require_plant(session, plant_id, current_user.id), session)
+
+
+@router.put("/{plant_id}/care-schedule", response_model=CareSchedule)
+def update_care_schedule(
+    plant_id: UUID,
+    payload: CareIntervals,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[Session, Depends(get_session)],
+) -> CareSchedule:
+    plant = session.scalar(
+        update(Plant)
+        .where(Plant.id == plant_id, Plant.owner_id == current_user.id)
+        .values(**payload.model_dump())
+        .returning(Plant)
+    )
+    if plant is None:
+        raise HTTPException(status_code=404, detail="Растение не найдено")
+    result = care_schedule(plant, session)
+    session.commit()
+    return result
 
 
 @router.get("/{plant_id}", response_model=PlantResult)
